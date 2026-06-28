@@ -2,6 +2,6 @@ export interface ChatMessage {
   word: string;
   translation: string;
   isUser: boolean;
-  cefr?: string;
+  level?: string;
   score?: number;
 }
