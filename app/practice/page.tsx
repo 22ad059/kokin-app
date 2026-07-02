@@ -22,6 +22,8 @@ export default function PracticePage() {
   const [gameOver, setGameOver] = useState(false);
   const [gameOverReason, setGameOverReason] = useState('');
   const [gameLoading, setGameLoading] = useState(false);
+  const [setupError, setSetupError] = useState('');
+  const [gameError, setGameError] = useState('');
 
   useEffect(() => {
     fetch('/api/words?limit=1')
@@ -31,13 +33,15 @@ export default function PracticePage() {
         const sorted = [...all.filter(g => g !== 'その他'), ...all.filter(g => g === 'その他')];
         setAllGenres(sorted);
         setSelectedGenres(prev => prev.length ? prev : sorted.slice(0, 1));
-      });
+      })
+      .catch(() => {});
   }, []);
 
   const canStart = selectedLevels.length > 0 && selectedGenres.length > 0 && !loading;
 
   const startPractice = useCallback(async () => {
     if (!canStart) return;
+    setSetupError('');
     setLoading(true);
     try {
       const params = new URLSearchParams();
@@ -47,18 +51,22 @@ export default function PracticePage() {
       const res = await fetch(`/api/words?${params}`);
       const data = await res.json();
       const words: WordEntry[] = data.words ?? [];
-      if (words.length === 0) { alert('該当する単語がありません。レベルやジャンルを変えてください。'); return; }
+      if (words.length === 0) { setSetupError('該当する単語がありません。レベルやジャンルを変えてください。'); return; }
       setWordList(words);
       setHistory([]);
       setScore(0);
       setGameOver(false);
       setGameOverReason('');
+      setGameError('');
       setPhase('game');
+    } catch {
+      setSetupError('通信エラーが発生しました。もう一度お試しください。');
     } finally { setLoading(false); }
   }, [canStart, selectedLevels, selectedGenres]);
 
   const playWord = useCallback(async (word: string) => {
     if (gameLoading || gameOver) return;
+    setGameError('');
     setGameLoading(true);
     try {
       const res = await fetch('/api/game', {
@@ -72,7 +80,7 @@ export default function PracticePage() {
         }),
       });
       const data = await res.json();
-      if (!data.is_valid) { alert(data.reason); setGameLoading(false); return; }
+      if (!data.is_valid) { setGameError(data.reason || 'その単語は使えません。'); setGameLoading(false); return; }
 
       const newEntries: PracticeMessage[] = [
         {
@@ -93,21 +101,21 @@ export default function PracticePage() {
         setGameOver(true);
         setGameOverReason('すべての単語を使い切りました！');
       }
-    } catch { alert('エラーが発生しました。'); }
+    } catch { setGameError('通信エラーが発生しました。もう一度お試しください。'); }
     setGameLoading(false);
   }, [gameLoading, gameOver, history, wordList]);
 
   // ── セットアップ ──
   if (phase === 'setup') {
     return (
-      <PageShell variant="amber">
+      <PageShell variant="amber" contentKey={phase}>
         <header className="mb-8">
           <Link href="/" className="inline-flex items-center gap-1 text-white/40 hover:text-white/70 text-sm font-medium transition-colors mb-6">
             ← トップへ戻る
           </Link>
           <div className="flex items-center justify-center gap-2 mb-1">
             <span className="text-3xl">🎯</span>
-            <h1 className="text-3xl font-black text-white tracking-tight">練習ゲーム</h1>
+            <h1 className="text-3xl font-black tracking-tight bg-gradient-to-r from-white via-amber-300 to-white bg-clip-text text-transparent animate-gradient-x">練習ゲーム</h1>
           </div>
           <p className="text-white/40 text-sm text-center">レベルとジャンルを選んで単語で対戦しよう</p>
         </header>
@@ -116,8 +124,14 @@ export default function PracticePage() {
           <LevelSelector selectedLevels={selectedLevels} onChange={setSelectedLevels} variant="amber" />
           <GenreSelector genres={allGenres} selectedGenres={selectedGenres} onChange={setSelectedGenres} variant="amber" />
 
+          {setupError && (
+            <div role="alert" className="bg-rose-500/15 border border-rose-400/30 text-rose-300 text-sm font-bold rounded-2xl px-4 py-3 text-center backdrop-blur-sm">
+              ⚠️ {setupError}
+            </div>
+          )}
+
           <button onClick={startPractice} disabled={!canStart}
-            className="w-full py-4 rounded-2xl font-black text-white text-base bg-gradient-to-r from-amber-500 to-orange-600 shadow-xl shadow-amber-500/20 hover:from-amber-400 hover:to-orange-500 transition-all active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed">
+            className="w-full py-4 rounded-2xl font-black text-white text-base bg-gradient-to-r from-amber-500 to-orange-600 shadow-xl hover:from-amber-400 hover:to-orange-500 transition-all active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed animate-glow [--glow:rgba(245,158,11,0.35)]">
             {loading ? '準備中...' : '🎯 練習ゲームを始める'}
           </button>
         </div>
@@ -127,7 +141,7 @@ export default function PracticePage() {
 
   // ── ゲーム ──
   return (
-    <PageShell variant="amber">
+    <PageShell variant="amber" contentKey={phase}>
       <PracticeGame
         wordList={wordList}
         history={history}
@@ -135,9 +149,10 @@ export default function PracticePage() {
         gameOver={gameOver}
         gameOverReason={gameOverReason}
         gameLoading={gameLoading}
+        errorMsg={gameError}
         onPlayWord={playWord}
-        onRestart={() => { setHistory([]); setScore(0); setGameOver(false); setGameOverReason(''); }}
-        onBack={() => setPhase('setup')}
+        onRestart={() => { setHistory([]); setScore(0); setGameOver(false); setGameOverReason(''); setGameError(''); }}
+        onBack={() => { setGameError(''); setPhase('setup'); }}
         backLabel="← 設定に戻る"
         variant="amber"
       />

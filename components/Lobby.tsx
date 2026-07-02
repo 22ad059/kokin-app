@@ -25,7 +25,7 @@ export default function Lobby({ isPvP, setIsPvP, theme, setTheme, charLimit, set
         </button>
         <div className="flex items-center justify-center gap-2 mb-1">
           <span className="text-3xl">⚔️</span>
-          <h1 className="text-3xl font-black text-white tracking-tight">対戦ゲーム</h1>
+          <h1 className="text-3xl font-black tracking-tight bg-gradient-to-r from-white via-indigo-300 to-white bg-clip-text text-transparent animate-gradient-x">対戦ゲーム</h1>
         </div>
         <p className="text-white/40 text-sm text-center">テーマを決めて英単語を出し合おう</p>
       </header>
@@ -61,7 +61,7 @@ export default function Lobby({ isPvP, setIsPvP, theme, setTheme, charLimit, set
           placeholder="例：OCEAN、ANIMAL..."
           value={theme}
           onChange={(e) => setTheme(e.target.value.toUpperCase())}
-          onKeyDown={(e) => e.key === 'Enter' && theme && onStart()}
+          onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && theme.trim() && onStart()}
         />
         <div className="flex flex-wrap gap-1.5 mt-3">
           {PRESETS.map(t => (
@@ -110,11 +110,11 @@ export default function Lobby({ isPvP, setIsPvP, theme, setTheme, charLimit, set
       {/* スタートボタン */}
       <button
         onClick={onStart}
-        disabled={!theme}
-        className={`w-full py-4 rounded-2xl font-black text-white text-lg transition-all active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed shadow-xl ${
+        disabled={!theme.trim()}
+        className={`w-full py-4 rounded-2xl font-black text-white text-lg transition-all active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed shadow-xl animate-glow ${
           isPvP
-            ? 'bg-gradient-to-r from-rose-500 to-pink-600 shadow-rose-500/30 hover:from-rose-400 hover:to-pink-500'
-            : 'bg-gradient-to-r from-indigo-500 to-violet-600 shadow-indigo-500/30 hover:from-indigo-400 hover:to-violet-500'
+            ? 'bg-gradient-to-r from-rose-500 to-pink-600 hover:from-rose-400 hover:to-pink-500 [--glow:rgba(244,63,94,0.4)]'
+            : 'bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 [--glow:rgba(99,102,241,0.4)]'
         }`}
       >
         ゲームスタート！

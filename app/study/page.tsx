@@ -33,6 +33,7 @@ export default function StudyPage() {
   // Browse selection mode
   const [selectMode, setSelectMode] = useState(false);
   const [selectedWords, setSelectedWords] = useState<Set<string>>(new Set());
+  const [setupError, setSetupError] = useState('');
 
   // Practice game
   const [practiceWordList, setPracticeWordList] = useState<WordEntry[]>([]);
@@ -41,6 +42,7 @@ export default function StudyPage() {
   const [practiceOver, setPracticeOver] = useState(false);
   const [practiceOverReason, setPracticeOverReason] = useState('');
   const [practiceLoading, setPracticeLoading] = useState(false);
+  const [practiceError, setPracticeError] = useState('');
 
   useEffect(() => {
     fetch('/api/words?limit=1')
@@ -50,7 +52,8 @@ export default function StudyPage() {
         const sorted = [...all.filter(g => g !== 'その他'), ...all.filter(g => g === 'その他')];
         setGenres(sorted);
         setSelectedGenres(prev => prev.length ? prev : sorted.slice(0, 1));
-      });
+      })
+      .catch(() => {});
   }, []);
 
   const fetchWords = useCallback(async (options: { limit?: number; sort?: 'rank' }) => {
@@ -66,29 +69,40 @@ export default function StudyPage() {
 
   const startQuiz = useCallback(async () => {
     if (!selectedLevels.length || !selectedGenres.length) return;
+    setSetupError('');
     setLoading(true);
     try {
       const words = await fetchWords({ limit: quizSize });
       const allWords = shuffle(words).slice(0, quizSize);
-      if (allWords.length === 0) { alert('該当する単語がありません。レベルやジャンルを変えてください。'); return; }
+      if (allWords.length === 0) {
+        setSetupError('該当する単語がありません。レベルやジャンルを変えてください。');
+        setPhase('setup');
+        return;
+      }
       setCards(allWords);
       setCurrent(0);
       setShowAnswer(false);
       setPhase('quiz');
+    } catch {
+      setSetupError('通信エラーが発生しました。もう一度お試しください。');
+      setPhase('setup');
     } finally { setLoading(false); }
   }, [selectedLevels, selectedGenres, quizSize, fetchWords]);
 
   const startBrowse = useCallback(async () => {
     if (!selectedLevels.length || !selectedGenres.length) return;
+    setSetupError('');
     setLoading(true);
     try {
       const words = await fetchWords({ sort: 'rank' });
-      if (words.length === 0) { alert('該当する単語がありません。レベルやジャンルを変えてください。'); return; }
+      if (words.length === 0) { setSetupError('該当する単語がありません。レベルやジャンルを変えてください。'); return; }
       setBrowseWords(words);
       setSearchQuery('');
       setSelectMode(false);
       setSelectedWords(new Set());
       setPhase('browse');
+    } catch {
+      setSetupError('通信エラーが発生しました。もう一度お試しください。');
     } finally { setLoading(false); }
   }, [selectedLevels, selectedGenres, fetchWords]);
 
@@ -100,11 +114,13 @@ export default function StudyPage() {
     setPracticeScore(0);
     setPracticeOver(false);
     setPracticeOverReason('');
+    setPracticeError('');
     setPhase('practice');
   }, [browseWords, selectedWords]);
 
   const practicePlayWord = useCallback(async (word: string) => {
     if (practiceLoading || practiceOver) return;
+    setPracticeError('');
     setPracticeLoading(true);
     try {
       const res = await fetch('/api/game', {
@@ -118,7 +134,7 @@ export default function StudyPage() {
         }),
       });
       const data = await res.json();
-      if (!data.is_valid) { alert(data.reason); setPracticeLoading(false); return; }
+      if (!data.is_valid) { setPracticeError(data.reason || 'その単語は使えません。'); setPracticeLoading(false); return; }
 
       const newEntries: PracticeMessage[] = [
         {
@@ -139,7 +155,7 @@ export default function StudyPage() {
         setPracticeOver(true);
         setPracticeOverReason('すべての単語を使い切りました！');
       }
-    } catch { alert('エラーが発生しました。'); }
+    } catch { setPracticeError('通信エラーが発生しました。もう一度お試しください。'); }
     setPracticeLoading(false);
   }, [practiceHistory, practiceLoading, practiceOver, practiceWordList]);
 
@@ -154,14 +170,14 @@ export default function StudyPage() {
   // ── セットアップ ──
   if (phase === 'setup') {
     return (
-      <PageShell>
+      <PageShell contentKey={phase}>
         <header className="mb-8">
           <Link href="/" className="inline-flex items-center gap-1 text-white/40 hover:text-white/70 text-sm font-medium transition-colors mb-6">
             ← トップへ戻る
           </Link>
           <div className="flex items-center justify-center gap-2 mb-1">
             <span className="text-3xl">📚</span>
-            <h1 className="text-3xl font-black text-white tracking-tight">単語カード学習</h1>
+            <h1 className="text-3xl font-black tracking-tight bg-gradient-to-r from-white via-emerald-300 to-white bg-clip-text text-transparent animate-gradient-x">単語カード学習</h1>
           </div>
           <p className="text-white/40 text-sm text-center">ジャンルとレベルを選んで学習しよう</p>
         </header>
@@ -190,8 +206,14 @@ export default function StudyPage() {
             <p className="text-xs text-white/20 text-center mt-2">{QUIZ_SIZE_MIN}〜{QUIZ_SIZE_MAX} 語</p>
           </div>
 
+          {setupError && (
+            <div role="alert" className="bg-rose-500/15 border border-rose-400/30 text-rose-300 text-sm font-bold rounded-2xl px-4 py-3 text-center backdrop-blur-sm">
+              ⚠️ {setupError}
+            </div>
+          )}
+
           <button onClick={startQuiz} disabled={!canStart}
-            className="w-full py-4 rounded-2xl font-black text-white text-base bg-gradient-to-r from-emerald-500 to-teal-600 shadow-xl shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 transition-all active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed">
+            className="w-full py-4 rounded-2xl font-black text-white text-base bg-gradient-to-r from-emerald-500 to-teal-600 shadow-xl hover:from-emerald-400 hover:to-teal-500 transition-all active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed animate-glow [--glow:rgba(16,185,129,0.35)]">
             {loading ? '準備中...' : 'クイズ開始'}
           </button>
           <button onClick={startBrowse} disabled={!canStart}
@@ -210,7 +232,7 @@ export default function StudyPage() {
     const selectedCount = selectedWords.size;
 
     return (
-      <PageShell>
+      <PageShell contentKey={phase}>
         <div className={`flex flex-col gap-4 ${selectedCount >= 2 ? 'pb-24' : ''}`}>
           <div className="flex items-center justify-between">
             <button onClick={() => setPhase('setup')} className="inline-flex items-center gap-1 text-white/40 hover:text-white/70 text-sm font-medium transition-colors">
@@ -248,7 +270,12 @@ export default function StudyPage() {
                     <div key={`${w.word}-${i}`}
                       onClick={() => {
                         if (!selectMode) return;
-                        setSelectedWords(prev => { const next = new Set(prev); next.has(w.word) ? next.delete(w.word) : next.add(w.word); return next; });
+                        setSelectedWords(prev => {
+                          const next = new Set(prev);
+                          if (next.has(w.word)) next.delete(w.word);
+                          else next.add(w.word);
+                          return next;
+                        });
                       }}
                       className={`flex items-center gap-3 px-4 py-3 transition-colors ${selectMode ? 'cursor-pointer' : ''} ${isSelected && selectMode ? 'bg-violet-500/10' : ''}`}
                     >
@@ -298,7 +325,7 @@ export default function StudyPage() {
   // ── 練習ゲーム ──
   if (phase === 'practice') {
     return (
-      <PageShell>
+      <PageShell contentKey={phase}>
         <PracticeGame
           wordList={practiceWordList}
           history={practiceHistory}
@@ -306,9 +333,10 @@ export default function StudyPage() {
           gameOver={practiceOver}
           gameOverReason={practiceOverReason}
           gameLoading={practiceLoading}
+          errorMsg={practiceError}
           onPlayWord={practicePlayWord}
-          onRestart={() => { setPracticeHistory([]); setPracticeScore(0); setPracticeOver(false); setPracticeOverReason(''); }}
-          onBack={() => setPhase('browse')}
+          onRestart={() => { setPracticeHistory([]); setPracticeScore(0); setPracticeOver(false); setPracticeOverReason(''); setPracticeError(''); }}
+          onBack={() => { setPracticeError(''); setPhase('browse'); }}
           backLabel="← 一覧に戻る"
         />
       </PageShell>
@@ -322,7 +350,7 @@ export default function StudyPage() {
     const progress = ((current + 1) / cards.length) * 100;
 
     return (
-      <PageShell>
+      <PageShell contentKey={phase}>
         <div className="flex flex-col gap-4">
           <div>
             <div className="flex justify-between text-xs text-white/30 mb-2">
@@ -330,7 +358,7 @@ export default function StudyPage() {
               <span>{showAnswer ? '意味を確認中' : '単語を見る'}</span>
             </div>
             <div className="w-full bg-white/10 rounded-full h-1.5">
-              <div className="bg-gradient-to-r from-emerald-400 to-teal-400 h-1.5 rounded-full transition-all duration-300" style={{ width: `${progress}%` }} />
+              <div className="bg-gradient-to-r from-emerald-400 to-teal-400 h-1.5 rounded-full transition-all duration-300 shadow-[0_0_10px_rgba(52,211,153,0.6)]" style={{ width: `${progress}%` }} />
             </div>
           </div>
 
@@ -340,17 +368,17 @@ export default function StudyPage() {
               {q.level}
             </span>
             {showAnswer ? (
-              <>
+              <div key={`answer-${current}`} className="animate-fade-up">
                 <p className="text-xs text-white/30 mb-2">意味</p>
                 <p className="text-4xl font-black text-emerald-400">{q.translation || q.genre}</p>
                 <p className="text-xs text-white/30 mt-4">{q.genre} · {q.pos}</p>
-              </>
+              </div>
             ) : (
-              <>
+              <div key={`question-${current}`} className="animate-fade-up">
                 <p className="text-5xl font-black text-white mb-3">{q.word}</p>
                 <p className="text-sm text-white/30">{q.pos}</p>
                 <p className="text-sm font-bold text-emerald-400/60 mt-5">タップして意味を見る</p>
-              </>
+              </div>
             )}
           </button>
 
@@ -371,7 +399,7 @@ export default function StudyPage() {
 
   // ── 結果 ──
   return (
-    <PageShell>
+    <PageShell contentKey={phase}>
       <div className="flex flex-col gap-4">
         <Link href="/" className="inline-flex items-center gap-1 text-white/40 hover:text-white/70 text-sm font-medium transition-colors self-start">
           ← トップへ戻る
@@ -398,8 +426,8 @@ export default function StudyPage() {
         </div>
 
         <div className="grid grid-cols-2 gap-3">
-          <button onClick={startQuiz}
-            className="py-4 rounded-2xl font-black text-white bg-gradient-to-r from-emerald-500 to-teal-600 shadow-xl shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 transition-all active:scale-95">
+          <button onClick={startQuiz} disabled={loading}
+            className="py-4 rounded-2xl font-black text-white bg-gradient-to-r from-emerald-500 to-teal-600 shadow-xl shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 transition-all active:scale-95 disabled:opacity-20">
             もう一回
           </button>
           <button onClick={() => setPhase('setup')}

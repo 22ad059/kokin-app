@@ -1,3 +1,4 @@
+import { useRef, useEffect } from 'react';
 import { ChatMessage } from '@/types/game';
 import { LEVEL_BADGE } from '@/lib/constants';
 
@@ -12,6 +13,7 @@ interface GameBoardProps {
   input: string;
   setInput: (v: string) => void;
   loading: boolean;
+  errorMsg?: string;
   onPlayTurn: () => void;
   onReset: () => void;
   onEndGame: () => void;
@@ -19,10 +21,16 @@ interface GameBoardProps {
 
 export default function GameBoard({
   isPvP, currentPlayer, scores, totalScore,
-  theme, charLimit, history, input, setInput, loading,
+  theme, charLimit, history, input, setInput, loading, errorMsg,
   onPlayTurn, onReset, onEndGame,
 }: GameBoardProps) {
   const isP1Turn = !isPvP || currentPlayer === 1;
+  const chatRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const el = chatRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
+  }, [history]);
 
   const statusGradient = isP1Turn
     ? 'from-indigo-500 to-violet-600'
@@ -68,10 +76,10 @@ export default function GameBoard({
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-white/60">
-              {isPvP ? `プレイヤー ${currentPlayer} のターン` : 'ソロモード'}
+              {isPvP ? '2人対戦モード' : 'ソロモード'}
             </p>
             <p className="text-lg font-black text-white mt-0.5">
-              {isPvP ? (currentPlayer === 1 ? 'あなたの番！' : '相手の番') : 'AI と対戦中'}
+              {isPvP ? `プレイヤー ${currentPlayer} の番！` : 'AI と対戦中'}
             </p>
           </div>
           <div className="text-right">
@@ -89,7 +97,7 @@ export default function GameBoard({
             ) : (
               <div className="text-center">
                 <p className="text-[10px] font-bold text-white/50">SCORE</p>
-                <p className="text-3xl font-black text-white">{totalScore}</p>
+                <p className="text-3xl font-black text-white tabular-nums drop-shadow-[0_0_10px_rgba(255,255,255,0.4)]">{totalScore}</p>
               </div>
             )}
           </div>
@@ -97,7 +105,7 @@ export default function GameBoard({
       </div>
 
       {/* チャット履歴 */}
-      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 h-96 overflow-y-auto flex flex-col gap-3">
+      <div ref={chatRef} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 h-96 overflow-y-auto flex flex-col gap-3">
         {history.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-white/20">
             <p className="text-4xl mb-3">💬</p>
@@ -105,7 +113,7 @@ export default function GameBoard({
           </div>
         ) : (
           history.map((item, i) => (
-            <div key={i} className={`flex ${item.isUser ? 'justify-end' : 'justify-start'}`}>
+            <div key={i} className={`flex animate-bubble-in ${item.isUser ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[78%] px-4 py-3 rounded-2xl ${bubbleStyle(item)}`}>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-lg font-black">{item.word}</span>
@@ -127,6 +135,13 @@ export default function GameBoard({
         )}
       </div>
 
+      {/* エラー表示 */}
+      {errorMsg && (
+        <div role="alert" className="bg-rose-500/15 border border-rose-400/30 text-rose-300 text-sm font-bold rounded-2xl px-4 py-3 text-center backdrop-blur-sm">
+          ⚠️ {errorMsg}
+        </div>
+      )}
+
       {/* 入力エリア */}
       <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-2">
         {charLimit !== null && (
@@ -147,8 +162,9 @@ export default function GameBoard({
           <input
             className="flex-1 bg-transparent px-3 py-2.5 outline-none text-white font-bold placeholder:text-white/20"
             value={input}
+            maxLength={charLimit ?? undefined}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && onPlayTurn()}
+            onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && onPlayTurn()}
             placeholder={charLimit !== null ? `${charLimit}文字の英単語...` : '英単語を入力...'}
             autoFocus
           />
@@ -161,10 +177,12 @@ export default function GameBoard({
           )}
           <button
             onClick={onPlayTurn}
-            disabled={loading || !input || (charLimit !== null && input.length !== charLimit)}
+            disabled={loading || !input.trim() || (charLimit !== null && input.trim().length !== charLimit)}
             className={`px-6 py-2.5 rounded-xl font-black text-white bg-gradient-to-r ${sendBtnGradient} shadow-lg transition-all active:scale-95 disabled:opacity-30`}
           >
-            {loading ? '...' : '送信'}
+            {loading ? (
+              <span className="inline-block w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin align-[-2px]" />
+            ) : '送信'}
           </button>
         </div>
       </div>

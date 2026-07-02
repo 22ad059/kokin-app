@@ -21,10 +21,12 @@ export default function ResultScreen({
   const p2Words = history.filter(h => !h.isUser).length;
   const soloWords = history.filter(h => h.isUser).length;
 
-  const levelCounts = history.reduce<Record<string, number>>((acc, h) => {
-    if (h.level) acc[h.level] = (acc[h.level] || 0) + 1;
-    return acc;
-  }, {});
+  // ソロでは AI の単語を除き、自分が回答した単語だけを集計する
+  const levelCounts = (isPvP ? history : history.filter(h => h.isUser))
+    .reduce<Record<string, number>>((acc, h) => {
+      if (h.level) acc[h.level] = (acc[h.level] || 0) + 1;
+      return acc;
+    }, {});
 
 
   return (
@@ -41,7 +43,7 @@ export default function ResultScreen({
           </p>
           {isPvP ? (
             <>
-              <p className="text-5xl mb-3">🏆</p>
+              <p className="text-5xl mb-3 animate-pop-in">🏆</p>
               <p className="text-2xl font-black text-white">
                 プレイヤー {winningPlayer} の勝利！
               </p>
@@ -53,8 +55,8 @@ export default function ResultScreen({
             </>
           ) : (
             <>
-              <p className="text-5xl mb-3">🎯</p>
-              <p className="text-5xl font-black text-white">
+              <p className="text-5xl mb-3 animate-pop-in">🎯</p>
+              <p className="text-5xl font-black text-white tabular-nums drop-shadow-[0_0_16px_rgba(129,140,248,0.5)]">
                 {totalScore}
                 <span className="text-lg font-bold text-white/30 ml-1">pt</span>
               </p>

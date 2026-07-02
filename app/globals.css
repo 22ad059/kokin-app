@@ -1,8 +1,8 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --background: #0f172a;
+  --foreground: #ededed;
 }
 
 @theme inline {
@@ -12,15 +12,179 @@
   --font-mono: var(--font-geist-mono);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
-}
-
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), var(--font-noto-sans-jp),
+    "Hiragino Kaku Gothic ProN", "Yu Gothic UI", sans-serif;
 }
+
+/* ── スクロールバー（チャット欄・一覧で目立たないように） ── */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 9999px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+}
+
+/* ── 背景テクスチャ ── */
+.bg-grid-overlay {
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.035) 1px, transparent 1px);
+  background-size: 44px 44px;
+  mask-image: radial-gradient(ellipse 90% 70% at 50% 35%, black 25%, transparent 75%);
+  -webkit-mask-image: radial-gradient(ellipse 90% 70% at 50% 35%, black 25%, transparent 75%);
+}
+
+/* ── カードの光沢スイープ（ホバーで光が走る） ── */
+.card-shine {
+  position: relative;
+  overflow: hidden;
+}
+.card-shine::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    105deg,
+    transparent 40%,
+    rgba(255, 255, 255, 0.09) 50%,
+    transparent 60%
+  );
+  transform: translateX(-120%);
+  transition: transform 0.7s ease;
+  pointer-events: none;
+}
+.card-shine:hover::after {
+  transform: translateX(120%);
+}
+
+/* ── タイトルのグロー ── */
+.title-glow {
+  filter: drop-shadow(0 0 18px rgba(129, 140, 248, 0.45));
+}
+
+/* ── アニメーション ── */
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(14px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes bubble-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.95);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pop-in {
+  0% {
+    opacity: 0;
+    transform: scale(0.5);
+  }
+  70% {
+    transform: scale(1.08);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes float-a {
+  0%, 100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: -30px 25px;
+  }
+}
+
+@keyframes float-b {
+  0%, 100% {
+    translate: 0 0;
+  }
+  50% {
+    translate: 30px -25px;
+  }
+}
+
+@keyframes gradient-x {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes glow-pulse {
+  0%, 100% {
+    box-shadow: 0 0 18px 0 var(--glow, rgba(99, 102, 241, 0.35));
+  }
+  50% {
+    box-shadow: 0 0 34px 5px var(--glow, rgba(99, 102, 241, 0.5));
+  }
+}
+
+.animate-fade-up {
+  animation: fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-bubble-in {
+  animation: bubble-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-pop-in {
+  animation: pop-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+.animate-float-a {
+  animation: float-a 16s ease-in-out infinite;
+}
+.animate-float-b {
+  animation: float-b 20s ease-in-out infinite;
+}
+.animate-gradient-x {
+  background-size: 200% auto;
+  animation: gradient-x 5s ease-in-out infinite;
+}
+.animate-glow {
+  animation: glow-pulse 2.8s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-fade-up,
+  .animate-bubble-in,
+  .animate-pop-in,
+  .animate-float-a,
+  .animate-float-b,
+  .animate-gradient-x,
+  .animate-glow {
+    animation: none;
+  }
+  .card-shine::after {
+    display: none;
+  }
+}
+

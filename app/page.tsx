@@ -21,6 +21,7 @@ export default function Game() {
   const [totalScore, setTotalScore] = useState(0);
   const [loading, setLoading] = useState(false);
   const [charLimit, setCharLimit] = useState<number | null>(null);
+  const [errorMsg, setErrorMsg] = useState('');
 
   const goToTop = () => {
     setShowTop(true);
@@ -35,6 +36,7 @@ export default function Game() {
     setTheme('');
     setCurrentPlayer(1);
     setCharLimit(null);
+    setErrorMsg('');
   };
 
   const resetGame = () => {
@@ -49,6 +51,7 @@ export default function Game() {
     setTheme('');
     setCurrentPlayer(1);
     setCharLimit(null);
+    setErrorMsg('');
   };
 
   const rematch = () => {
@@ -60,11 +63,14 @@ export default function Game() {
     setScores({ p1: 0, p2: 0 });
     setInput('');
     setCurrentPlayer(1);
+    setErrorMsg('');
   };
 
   const playTurn = async () => {
-    if (!input || loading || isGameOver) return;
-    if (charLimit !== null && input.length !== charLimit) return;
+    const word = input.trim();
+    if (!word || loading || isGameOver) return;
+    if (charLimit !== null && word.length !== charLimit) return;
+    setErrorMsg('');
     setLoading(true);
 
     try {
@@ -73,7 +79,7 @@ export default function Game() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           theme,
-          userWord: input,
+          userWord: word,
           history: history.map(h => h.word),
           mode: isPvP ? 'pvp' : 'solo',
           charLimit,
@@ -86,7 +92,7 @@ export default function Game() {
           const playerKey = currentPlayer === 1 ? 'p1' : 'p2';
           setScores(prev => ({ ...prev, [playerKey]: prev[playerKey] + data.score }));
           setHistory(prev => [...prev, {
-            word: input,
+            word,
             translation: data.is_synonym ? '🔥 類義語ボーナス x2!' : data.is_antonym ? '❄️ 対義語ボーナス x2!' : `プレイヤー ${currentPlayer}`,
             isUser: currentPlayer === 1,
             level: data.jacet_level,
@@ -96,7 +102,7 @@ export default function Game() {
         } else {
           setTotalScore(prev => prev + data.score);
           setHistory(prev => [...prev,
-            { word: input, translation: data.is_synonym ? '🔥 類義語ボーナス x2!' : data.is_antonym ? '❄️ 対義語ボーナス x2!' : (data.user_word_jp || ''), isUser: true, level: data.jacet_level, score: data.score },
+            { word, translation: data.is_synonym ? '🔥 類義語ボーナス x2!' : data.is_antonym ? '❄️ 対義語ボーナス x2!' : (data.user_word_jp || ''), isUser: true, level: data.jacet_level, score: data.score },
             ...(data.ai_response ? [{ word: data.ai_response, translation: data.ai_response_jp, isUser: false, level: data.ai_jacet_level }] : []),
           ]);
         }
@@ -107,7 +113,7 @@ export default function Game() {
         setIsGameOver(true);
       }
     } catch {
-      alert('エラーが発生しました。');
+      setErrorMsg('通信エラーが発生しました。もう一度お試しください。');
     }
     setLoading(false);
   };
@@ -118,17 +124,18 @@ export default function Game() {
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex flex-col items-center px-4 py-10">
       {/* 背景装飾 */}
       <div className="fixed inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-40 -right-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl" />
-        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-violet-600/20 rounded-full blur-3xl" />
+        <div className="absolute inset-0 bg-grid-overlay" />
+        <div className="absolute -top-40 -right-40 w-96 h-96 bg-indigo-600/20 rounded-full blur-3xl animate-float-a" />
+        <div className="absolute -bottom-40 -left-40 w-96 h-96 bg-violet-600/20 rounded-full blur-3xl animate-float-b" />
         <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-emerald-600/10 rounded-full blur-3xl" />
       </div>
 
       {/* ヘッダー：トップ画面のみ表示 */}
       {screen === 'top' && (
-        <header className="relative mb-8 text-center">
+        <header className="relative mb-8 text-center animate-fade-up">
           <button onClick={goToTop} className="group inline-flex items-center gap-2 mb-2">
             <span className="text-3xl group-hover:scale-110 transition-transform">🌏</span>
-            <h1 className="text-3xl font-black text-white tracking-tight group-hover:text-white/90 transition-colors">
+            <h1 className="text-3xl font-black tracking-tight bg-gradient-to-r from-white via-indigo-300 to-white bg-clip-text text-transparent animate-gradient-x title-glow">
               英語<span className="text-indigo-400">・デ・</span>古今東西
             </h1>
           </button>
@@ -136,14 +143,15 @@ export default function Game() {
         </header>
       )}
 
-      <div className="relative w-full max-w-lg">
+      {/* key で画面切り替えごとに入場アニメーションを再生する */}
+      <div key={screen} className="relative w-full max-w-lg animate-fade-up">
         {/* ─── トップ画面 ─── */}
         {screen === 'top' && (
           <div className="flex flex-col gap-4">
             {/* ゲームカード */}
             <button
               onClick={() => setShowTop(false)}
-              className="group w-full text-left bg-gradient-to-br from-indigo-500/20 to-violet-600/20 backdrop-blur-xl border border-indigo-400/20 rounded-3xl p-7 hover:border-indigo-400/40 hover:from-indigo-500/30 hover:to-violet-600/30 transition-all active:scale-[0.98] shadow-xl shadow-indigo-950/50"
+              className="group card-shine w-full text-left bg-gradient-to-br from-indigo-500/20 to-violet-600/20 backdrop-blur-xl border border-indigo-400/20 rounded-3xl p-7 hover:border-indigo-400/50 hover:from-indigo-500/30 hover:to-violet-600/30 hover:-translate-y-1 hover:shadow-2xl hover:shadow-indigo-500/25 transition-all duration-300 active:scale-[0.98] shadow-xl shadow-indigo-950/50"
             >
               <div className="flex items-start justify-between mb-4">
                 <div className="text-5xl">⚔️</div>
@@ -167,7 +175,7 @@ export default function Game() {
             <div className="grid grid-cols-2 gap-4">
               <Link
                 href="/study"
-                className="group text-left bg-gradient-to-br from-emerald-500/20 to-teal-600/20 backdrop-blur-xl border border-emerald-400/20 rounded-3xl p-5 hover:border-emerald-400/40 hover:from-emerald-500/30 hover:to-teal-600/30 transition-all active:scale-[0.98] shadow-xl shadow-emerald-950/50 block"
+                className="group card-shine text-left bg-gradient-to-br from-emerald-500/20 to-teal-600/20 backdrop-blur-xl border border-emerald-400/20 rounded-3xl p-5 hover:border-emerald-400/50 hover:from-emerald-500/30 hover:to-teal-600/30 hover:-translate-y-1 hover:shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300 active:scale-[0.98] shadow-xl shadow-emerald-950/50 block"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="text-4xl">📚</div>
@@ -187,7 +195,7 @@ export default function Game() {
 
               <Link
                 href="/practice"
-                className="group text-left bg-gradient-to-br from-amber-500/20 to-orange-600/20 backdrop-blur-xl border border-amber-400/20 rounded-3xl p-5 hover:border-amber-400/40 hover:from-amber-500/30 hover:to-orange-600/30 transition-all active:scale-[0.98] shadow-xl shadow-amber-950/50 block"
+                className="group card-shine text-left bg-gradient-to-br from-amber-500/20 to-orange-600/20 backdrop-blur-xl border border-amber-400/20 rounded-3xl p-5 hover:border-amber-400/50 hover:from-amber-500/30 hover:to-orange-600/30 hover:-translate-y-1 hover:shadow-2xl hover:shadow-amber-500/25 transition-all duration-300 active:scale-[0.98] shadow-xl shadow-amber-950/50 block"
               >
                 <div className="flex items-start justify-between mb-3">
                   <div className="text-4xl">🎯</div>
@@ -234,6 +242,7 @@ export default function Game() {
             input={input}
             setInput={setInput}
             loading={loading}
+            errorMsg={errorMsg}
             onPlayTurn={playTurn}
             onReset={resetGame}
             onEndGame={() => setIsGameOver(true)}

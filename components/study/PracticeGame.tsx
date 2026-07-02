@@ -14,7 +14,7 @@ const COLORS: Record<Variant, {
 }> = {
   violet: {
     scoreBadge:  'from-violet-500/20 to-indigo-500/20 border-violet-400/20',
-    progressBar: 'from-violet-400 to-indigo-400',
+    progressBar: 'from-violet-400 to-indigo-400 shadow-[0_0_8px_rgba(139,92,246,0.6)]',
     userBubble:  'from-violet-500 to-indigo-600 shadow-violet-500/20',
     chipHover:   'hover:bg-violet-500/20 hover:border-violet-400/30',
     spinner:     'border-violet-400/40 border-t-violet-400',
@@ -22,7 +22,7 @@ const COLORS: Record<Variant, {
   },
   amber: {
     scoreBadge:  'from-amber-500/20 to-orange-500/20 border-amber-400/20',
-    progressBar: 'from-amber-400 to-orange-400',
+    progressBar: 'from-amber-400 to-orange-400 shadow-[0_0_8px_rgba(245,158,11,0.6)]',
     userBubble:  'from-amber-500 to-orange-600 shadow-amber-500/20',
     chipHover:   'hover:bg-amber-500/20 hover:border-amber-400/30',
     spinner:     'border-amber-400/40 border-t-amber-400',
@@ -37,6 +37,7 @@ interface Props {
   gameOver: boolean;
   gameOverReason: string;
   gameLoading: boolean;
+  errorMsg?: string;
   onPlayWord: (word: string) => void;
   onRestart: () => void;
   onBack: () => void;
@@ -46,13 +47,14 @@ interface Props {
 
 export default function PracticeGame({
   wordList, history, score, gameOver, gameOverReason,
-  gameLoading, onPlayWord, onRestart, onBack, backLabel = '← 戻る', variant = 'violet',
+  gameLoading, errorMsg, onPlayWord, onRestart, onBack, backLabel = '← 戻る', variant = 'violet',
 }: Props) {
   const c = COLORS[variant];
-  const chatEndRef = useRef<HTMLDivElement>(null);
+  const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+    const el = chatRef.current;
+    if (el) el.scrollTo({ top: el.scrollHeight, behavior: 'smooth' });
   }, [history]);
 
   const usedSet = new Set(history.map(h => h.word.toLowerCase()));
@@ -87,7 +89,7 @@ export default function PracticeGame({
       </div>
 
       {/* チャット履歴 */}
-      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 h-72 overflow-y-auto flex flex-col gap-3">
+      <div ref={chatRef} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 h-72 overflow-y-auto flex flex-col gap-3">
         {history.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-white/20">
             <p className="text-3xl mb-2">🎯</p>
@@ -95,7 +97,7 @@ export default function PracticeGame({
           </div>
         ) : (
           history.map((item, i) => (
-            <div key={i} className={`flex ${item.isUser ? 'justify-end' : 'justify-start'}`}>
+            <div key={i} className={`flex animate-bubble-in ${item.isUser ? 'justify-end' : 'justify-start'}`}>
               <div className={`max-w-[78%] px-4 py-3 rounded-2xl ${
                 item.isUser
                   ? `bg-gradient-to-br ${c.userBubble} text-white rounded-tr-none shadow-lg`
@@ -119,13 +121,19 @@ export default function PracticeGame({
             </div>
           ))
         )}
-        <div ref={chatEndRef} />
       </div>
+
+      {/* エラー表示 */}
+      {errorMsg && !gameOver && (
+        <div role="alert" className="bg-rose-500/15 border border-rose-400/30 text-rose-300 text-sm font-bold rounded-2xl px-4 py-3 text-center backdrop-blur-sm">
+          ⚠️ {errorMsg}
+        </div>
+      )}
 
       {/* 単語チップ or ゲームオーバー */}
       {gameOver ? (
-        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 text-center">
-          <p className="text-4xl mb-3">🎉</p>
+        <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 text-center animate-fade-up">
+          <p className="text-4xl mb-3 animate-pop-in">🎉</p>
           <p className="text-white font-black text-xl">{gameOverReason}</p>
           <p className="text-white/40 text-sm mt-1">スコア: {score} pt</p>
           <div className="grid grid-cols-2 gap-3 mt-5">
