@@ -29,7 +29,7 @@ export async function GET(req: Request) {
     const genres = [...new Set(loadWords().map(w => w.genre))].filter(Boolean);
     const levels = [...new Set(loadWords().map(w => w.level))].filter(Boolean);
 
-    return NextResponse.json({ words: result, genres, levels });
+    return NextResponse.json({ words: result, genres, levels, total: words.length });
   } catch (error) {
     console.error('Failed to load words data:', error);
     return NextResponse.json(

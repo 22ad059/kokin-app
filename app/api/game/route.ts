@@ -5,7 +5,7 @@ import { lookupTranslation, lookupEntry } from '@/lib/wordLoader';
 
 export async function POST(req: Request) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const { theme, userWord, history, mode, charLimit, practiceWords } = await req.json();
+  const { theme, userWord, history, mode, charLimit, posLimit, practiceWords } = await req.json();
 
   // ── 練習モード ──
   if (practiceWords && Array.isArray(practiceWords) && practiceWords.length > 0) {
@@ -84,17 +84,20 @@ JSON形式のみで回答: {"is_synonym": boolean, "is_antonym": boolean, "ai_re
   }
 
   // ── 通常モード ──
+  // 品詞制限用: JACET8000 辞書の品詞（参考情報としてプロンプトに渡し、判定の二重チェックにも使う）
+  const dictPos = posLimit ? (lookupEntry(userWord)?.pos ?? '') : '';
+
   const prompt = `
     あなたは英単語ゲームの審判兼、対戦相手です。
 
     【現在の状況】
     - ゲームモード: ${mode === 'pvp' ? '対戦モード(PvP)' : '1人用モード(Solo)'}
-    - テーマ: ${theme}
+    - テーマ: ${theme}${posLimit ? `\n    - 品詞制限: 「${posLimit}」の単語のみ使用可` : ''}${charLimit !== null ? `\n    - 文字数制限: ちょうど ${charLimit} 文字` : ''}
     - 履歴（使用済み単語）: [${history.join(', ')}]
     - ユーザーの入力: ${userWord}
 
     【判定ルール】
-    1. "${userWord}" が英語の単語かどうか確認する。英語以外（日本語、数字、記号など）は即座に不合格。${charLimit !== null ? `\n    1b. "${userWord}" がちょうど ${charLimit} 文字かどうか確認する。文字数が異なる場合は不合格。` : ''}
+    1. "${userWord}" が英語の単語かどうか確認する。英語以外（日本語、数字、記号など）は即座に不合格。${charLimit !== null ? `\n    1b. "${userWord}" がちょうど ${charLimit} 文字かどうか確認する。文字数が異なる場合は不合格。` : ''}${posLimit ? `\n    1c. 【重要】まず "${userWord}" の品詞を pos に記入し、「${posLimit}」の用法がない単語は必ず不合格にする（複数の品詞を持つ単語は「${posLimit}」の用法があれば合格）。${dictPos ? `参考: JACET8000辞書では "${userWord}" の品詞は「${dictPos}」。` : ''}` : ''}
     2. "${userWord}" がテーマ "${theme}" に沿っているか。
     3. "${userWord}" が履歴に含まれていないか（重複禁止）。
     4. 直前の単語 "${history[history.length - 1] || ''}" の類義語（Synonym）ならボーナス対象とする。
@@ -102,12 +105,13 @@ JSON形式のみで回答: {"is_synonym": boolean, "is_antonym": boolean, "ai_re
 
     【AIの挙動】
     - モードが "pvp" の場合: 判定のみを行い、ai_response は空文字にしてください。
-    - モードが "solo" の場合: 合格なら、履歴にない新しい単語を一つ選び ai_response に入れてください。
+    - モードが "solo" の場合: 合格なら、履歴にない新しい単語を一つ選び ai_response に入れてください。ai_response もテーマ${charLimit !== null ? `・文字数制限（${charLimit}文字）` : ''}${posLimit ? `・品詞制限（${posLimit}）` : ''}に従うこと。
 
     必ず以下のJSON形式でのみ回答してください：
     {
       "is_valid": boolean,
       "reason": "不合格の場合の理由（日本語）",
+      "pos": "ユーザーの単語の主な品詞（名詞/動詞/形容詞/副詞/その他 のいずれか）",
       "is_synonym": boolean,
       "is_antonym": boolean,
       "ai_response": "AIの回答（solo時のみ）",
@@ -126,6 +130,15 @@ JSON形式のみで回答: {"is_synonym": boolean, "is_antonym": boolean, "ai_re
     });
 
     const aiData = JSON.parse(response.choices[0].message.content || '{}');
+
+    // 品詞制限の二重チェック: AI判定と辞書のどちらも制限品詞に一致しない場合は不合格にする
+    if (posLimit && aiData.is_valid) {
+      const aiPos = String(aiData.pos ?? '');
+      if (aiPos !== posLimit && dictPos !== posLimit && (aiPos || dictPos)) {
+        aiData.is_valid = false;
+        aiData.reason = `「${userWord}」は${posLimit}ではありません（品詞: ${dictPos || aiPos}）`;
+      }
+    }
 
     // JACET8000 からレベルを取得してスコア計算
     const userEntry = lookupEntry(userWord);

@@ -5,18 +5,21 @@ interface LobbyProps {
   setTheme: (v: string) => void;
   charLimit: number | null;
   setCharLimit: (v: number | null) => void;
+  posLimit: string | null;
+  setPosLimit: (v: string | null) => void;
   onStart: () => void;
   onBack: () => void;
 }
 
 const PRESETS = ['ANIMAL', 'OCEAN', 'SPORT', 'FOOD', 'NATURE', 'BODY'];
+const POS_OPTIONS = ['名詞', '動詞', '形容詞', '副詞'];
 
 const MODES = [
   { label: 'ソロ', sub: 'AI と対戦', icon: '🤖', pvp: false, gradient: 'from-indigo-500 to-violet-600 shadow-indigo-500/30' },
   { label: '対戦', sub: '2人で勝負', icon: '⚔️', pvp: true,  gradient: 'from-rose-500 to-pink-600 shadow-rose-500/30' },
 ] as const;
 
-export default function Lobby({ isPvP, setIsPvP, theme, setTheme, charLimit, setCharLimit, onStart, onBack }: LobbyProps) {
+export default function Lobby({ isPvP, setIsPvP, theme, setTheme, charLimit, setCharLimit, posLimit, setPosLimit, onStart, onBack }: LobbyProps) {
   return (
     <div className="w-full max-w-sm mx-auto flex flex-col gap-3">
       <header className="mb-5">
@@ -78,6 +81,29 @@ export default function Lobby({ isPvP, setIsPvP, theme, setTheme, charLimit, set
             </button>
           ))}
         </div>
+      </div>
+
+      {/* 品詞制限 */}
+      <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-5">
+        <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-3">品詞制限</p>
+        <div className="flex flex-wrap gap-1.5">
+          {[null, ...POS_OPTIONS].map(pos => (
+            <button
+              key={pos ?? 'none'}
+              onClick={() => setPosLimit(pos)}
+              className={`text-sm font-bold px-3.5 py-1.5 rounded-full border transition-all ${
+                posLimit === pos
+                  ? 'bg-indigo-500/30 border-indigo-400/50 text-indigo-300'
+                  : 'bg-white/5 border-white/10 text-white/40 hover:text-white/70 hover:bg-white/10'
+              }`}
+            >
+              {pos ?? 'なし'}
+            </button>
+          ))}
+        </div>
+        <p className="text-xs text-white/30 mt-3">
+          {posLimit ? `${posLimit}の英単語だけが使える` : 'すべての品詞が使える'}
+        </p>
       </div>
 
       {/* 文字数制限 */}

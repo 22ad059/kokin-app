@@ -9,6 +9,7 @@ interface GameBoardProps {
   totalScore: number;
   theme: string;
   charLimit: number | null;
+  posLimit: string | null;
   history: ChatMessage[];
   input: string;
   setInput: (v: string) => void;
@@ -21,7 +22,7 @@ interface GameBoardProps {
 
 export default function GameBoard({
   isPvP, currentPlayer, scores, totalScore,
-  theme, charLimit, history, input, setInput, loading, errorMsg,
+  theme, charLimit, posLimit, history, input, setInput, loading, errorMsg,
   onPlayTurn, onReset, onEndGame,
 }: GameBoardProps) {
   const isP1Turn = !isPvP || currentPlayer === 1;
@@ -59,6 +60,9 @@ export default function GameBoard({
         <div className="flex items-center gap-2 bg-white/10 border border-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full">
           <span className="text-white/40 text-xs font-semibold">テーマ</span>
           <span className="text-white text-sm font-black tracking-wide">{theme.toUpperCase()}</span>
+          {posLimit && (
+            <span className="text-indigo-300 text-xs font-bold border-l border-white/15 pl-2">{posLimit}</span>
+          )}
         </div>
         {!isPvP && history.length > 0 && (
           <button
@@ -165,7 +169,11 @@ export default function GameBoard({
             maxLength={charLimit ?? undefined}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && onPlayTurn()}
-            placeholder={charLimit !== null ? `${charLimit}文字の英単語...` : '英単語を入力...'}
+            placeholder={
+              charLimit !== null || posLimit
+                ? `${[posLimit, charLimit !== null ? `${charLimit}文字` : ''].filter(Boolean).join('・')}の英単語...`
+                : '英単語を入力...'
+            }
             autoFocus
           />
           {charLimit !== null && (

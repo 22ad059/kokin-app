@@ -10,8 +10,8 @@ import PracticeGame from '@/components/study/PracticeGame';
 
 type Phase = 'setup' | 'quiz' | 'result' | 'browse' | 'practice';
 
-const QUIZ_SIZE_MIN = 5;
-const QUIZ_SIZE_MAX = 30;
+const QUIZ_SIZE_MIN = 1;
+const QUIZ_SIZE_FALLBACK_MAX = 30;
 
 function shuffle<T>(arr: T[]): T[] {
   return [...arr].sort(() => Math.random() - 0.5);
@@ -29,6 +29,7 @@ export default function StudyPage() {
   const [browseWords, setBrowseWords] = useState<WordEntry[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
   const [quizSize, setQuizSize] = useState(10);
+  const [availableCount, setAvailableCount] = useState<number | null>(null);
 
   // Browse selection mode
   const [selectMode, setSelectMode] = useState(false);
@@ -56,6 +57,26 @@ export default function StudyPage() {
       .catch(() => {});
   }, []);
 
+  // 選択中のレベル・ジャンルに該当する単語数を取得（学習語数の上限に使う）
+  useEffect(() => {
+    if (!selectedLevels.length || !selectedGenres.length) return;
+    const controller = new AbortController();
+    const params = new URLSearchParams();
+    params.set('level', selectedLevels.join(','));
+    params.set('genre', selectedGenres.join(','));
+    params.set('limit', '1');
+    fetch(`/api/words?${params}`, { signal: controller.signal })
+      .then(r => r.json())
+      .then(d => setAvailableCount(typeof d.total === 'number' ? d.total : null))
+      .catch(() => {});
+    return () => controller.abort();
+  }, [selectedLevels, selectedGenres]);
+
+  const hasSelection = selectedLevels.length > 0 && selectedGenres.length > 0;
+  const quizSizeMax = Math.max(QUIZ_SIZE_MIN, (hasSelection ? availableCount : null) ?? QUIZ_SIZE_FALLBACK_MAX);
+  // 上限が下がった場合は state を直接書き換えず、実効値としてクランプする
+  const effectiveQuizSize = Math.min(quizSize, quizSizeMax);
+
   const fetchWords = useCallback(async (options: { limit?: number; sort?: 'rank' }) => {
     const params = new URLSearchParams();
     params.set('level', selectedLevels.join(','));
@@ -72,8 +93,8 @@ export default function StudyPage() {
     setSetupError('');
     setLoading(true);
     try {
-      const words = await fetchWords({ limit: quizSize });
-      const allWords = shuffle(words).slice(0, quizSize);
+      const words = await fetchWords({ limit: effectiveQuizSize });
+      const allWords = shuffle(words).slice(0, effectiveQuizSize);
       if (allWords.length === 0) {
         setSetupError('該当する単語がありません。レベルやジャンルを変えてください。');
         setPhase('setup');
@@ -87,7 +108,7 @@ export default function StudyPage() {
       setSetupError('通信エラーが発生しました。もう一度お試しください。');
       setPhase('setup');
     } finally { setLoading(false); }
-  }, [selectedLevels, selectedGenres, quizSize, fetchWords]);
+  }, [selectedLevels, selectedGenres, effectiveQuizSize, fetchWords]);
 
   const startBrowse = useCallback(async () => {
     if (!selectedLevels.length || !selectedGenres.length) return;
@@ -188,22 +209,43 @@ export default function StudyPage() {
 
           {/* 問題数 */}
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl px-5 py-4">
-            <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-3">学習語数</p>
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-bold text-white/40 uppercase tracking-widest">学習語数</p>
+              <button
+                onClick={() => setQuizSize(quizSizeMax)}
+                className="text-xs font-bold text-emerald-400/70 hover:text-emerald-400 transition-colors"
+              >
+                最大にする
+              </button>
+            </div>
             <div className="flex items-center gap-3">
               <button
-                onClick={() => setQuizSize(q => Math.max(QUIZ_SIZE_MIN, q - 1))}
-                className="w-10 h-10 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-colors border border-white/10"
+                onClick={() => setQuizSize(Math.max(QUIZ_SIZE_MIN, effectiveQuizSize - 1))}
+                disabled={effectiveQuizSize <= QUIZ_SIZE_MIN}
+                className="w-10 h-10 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-colors border border-white/10 disabled:opacity-20 disabled:cursor-not-allowed"
               >−</button>
               <div className="flex-1 text-center">
-                <span className="text-3xl font-black text-white">{quizSize}</span>
+                <span className="text-3xl font-black text-white tabular-nums">{effectiveQuizSize}</span>
                 <span className="text-sm text-white/40 ml-1">語</span>
               </div>
               <button
-                onClick={() => setQuizSize(q => Math.min(QUIZ_SIZE_MAX, q + 1))}
-                className="w-10 h-10 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-colors border border-white/10"
+                onClick={() => setQuizSize(Math.min(quizSizeMax, effectiveQuizSize + 1))}
+                disabled={effectiveQuizSize >= quizSizeMax}
+                className="w-10 h-10 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-colors border border-white/10 disabled:opacity-20 disabled:cursor-not-allowed"
               >＋</button>
             </div>
-            <p className="text-xs text-white/20 text-center mt-2">{QUIZ_SIZE_MIN}〜{QUIZ_SIZE_MAX} 語</p>
+            <input
+              type="range"
+              min={QUIZ_SIZE_MIN}
+              max={quizSizeMax}
+              value={effectiveQuizSize}
+              onChange={e => setQuizSize(Number(e.target.value))}
+              className="w-full mt-3 accent-emerald-400 cursor-pointer"
+            />
+            <p className="text-xs text-white/20 text-center mt-2">
+              {QUIZ_SIZE_MIN}〜{quizSizeMax} 語
+              {availableCount !== null && `（該当 ${availableCount} 語）`}
+            </p>
           </div>
 
           {setupError && (

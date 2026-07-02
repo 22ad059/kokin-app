@@ -21,6 +21,7 @@ export default function Game() {
   const [totalScore, setTotalScore] = useState(0);
   const [loading, setLoading] = useState(false);
   const [charLimit, setCharLimit] = useState<number | null>(null);
+  const [posLimit, setPosLimit] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   const goToTop = () => {
@@ -36,6 +37,7 @@ export default function Game() {
     setTheme('');
     setCurrentPlayer(1);
     setCharLimit(null);
+    setPosLimit(null);
     setErrorMsg('');
   };
 
@@ -51,6 +53,7 @@ export default function Game() {
     setTheme('');
     setCurrentPlayer(1);
     setCharLimit(null);
+    setPosLimit(null);
     setErrorMsg('');
   };
 
@@ -83,6 +86,7 @@ export default function Game() {
           history: history.map(h => h.word),
           mode: isPvP ? 'pvp' : 'solo',
           charLimit,
+          posLimit,
         }),
       });
       const data = await res.json();
@@ -225,6 +229,8 @@ export default function Game() {
             setTheme={setTheme}
             charLimit={charLimit}
             setCharLimit={setCharLimit}
+            posLimit={posLimit}
+            setPosLimit={setPosLimit}
             onStart={() => setIsThemeSet(true)}
             onBack={goToTop}
           />
@@ -238,6 +244,7 @@ export default function Game() {
             totalScore={totalScore}
             theme={theme}
             charLimit={charLimit}
+            posLimit={posLimit}
             history={history}
             input={input}
             setInput={setInput}
