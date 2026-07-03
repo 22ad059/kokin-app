@@ -4,6 +4,7 @@ import { LEVEL_BADGE } from '@/lib/constants';
 
 interface GameBoardProps {
   isPvP: boolean;
+  isOvertake: boolean;
   currentPlayer: number;
   scores: { p1: number; p2: number };
   totalScore: number;
@@ -21,11 +22,16 @@ interface GameBoardProps {
 }
 
 export default function GameBoard({
-  isPvP, currentPlayer, scores, totalScore,
+  isPvP, isOvertake, currentPlayer, scores, totalScore,
   theme, charLimit, posLimit, history, input, setInput, loading, errorMsg,
   onPlayTurn, onReset, onEndGame,
 }: GameBoardProps) {
   const isP1Turn = !isPvP || currentPlayer === 1;
+
+  // 逆転モード: 交代に必要な残りポイント（相手のスコアを「超える」必要がある）
+  const myScore = currentPlayer === 1 ? scores.p1 : scores.p2;
+  const opponentScore = currentPlayer === 1 ? scores.p2 : scores.p1;
+  const pointsToPass = Math.max(1, opponentScore - myScore + 1);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -80,11 +86,16 @@ export default function GameBoard({
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-white/60">
-              {isPvP ? '2人対戦モード' : 'ソロモード'}
+              {isPvP ? (isOvertake ? 'スコアモード' : '2人対戦モード') : 'ソロモード'}
             </p>
             <p className="text-lg font-black text-white mt-0.5">
               {isPvP ? `プレイヤー ${currentPlayer} の番！` : 'AI と対戦中'}
             </p>
+            {isPvP && isOvertake && (
+              <p className="text-[11px] font-bold text-white/70 mt-1">
+                あと {pointsToPass} pt で交代
+              </p>
+            )}
           </div>
           <div className="text-right">
             {isPvP ? (
@@ -122,8 +133,11 @@ export default function GameBoard({
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="text-lg font-black">{item.word}</span>
                   {item.level && item.level !== 'Unknown' && (
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-black ${LEVEL_BADGE[item.level] ?? 'bg-white/20 text-white'}`}>
-                      {item.level.replace('Level ', 'Lv.')}
+                    <span
+                      className={`text-[10px] px-2 py-0.5 rounded-full font-black ${LEVEL_BADGE[item.level] ?? 'bg-white/20 text-white'}`}
+                      title={item.levelEstimated ? 'JACET8000リスト外のためAIが推定したレベル' : undefined}
+                    >
+                      {item.levelEstimated ? '≈' : ''}{item.level.replace('Level ', 'Lv.')}
                     </span>
                   )}
                 </div>

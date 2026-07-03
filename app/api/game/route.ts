@@ -7,6 +7,10 @@ export async function POST(req: Request) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
   const { theme, userWord, history, mode, charLimit, posLimit, practiceWords } = await req.json();
 
+  if (typeof userWord !== 'string' || !userWord.trim() || !Array.isArray(history)) {
+    return NextResponse.json({ error: '不正なリクエストです' }, { status: 400 });
+  }
+
   // ── 練習モード ──
   if (practiceWords && Array.isArray(practiceWords) && practiceWords.length > 0) {
     const usedLower = (history as string[]).map((h: string) => h.toLowerCase());
@@ -97,7 +101,7 @@ JSON形式のみで回答: {"is_synonym": boolean, "is_antonym": boolean, "ai_re
     - ユーザーの入力: ${userWord}
 
     【判定ルール】
-    1. "${userWord}" が英語の単語かどうか確認する。英語以外（日本語、数字、記号など）は即座に不合格。${charLimit !== null ? `\n    1b. "${userWord}" がちょうど ${charLimit} 文字かどうか確認する。文字数が異なる場合は不合格。` : ''}${posLimit ? `\n    1c. 【重要】まず "${userWord}" の品詞を pos に記入し、「${posLimit}」の用法がない単語は必ず不合格にする（複数の品詞を持つ単語は「${posLimit}」の用法があれば合格）。${dictPos ? `参考: JACET8000辞書では "${userWord}" の品詞は「${dictPos}」。` : ''}` : ''}
+    1. "${userWord}" が英語の単語かどうか確認する。英語以外（日本語、数字、記号など）は即座に不合格。${charLimit !== null ? `\n    1b. "${userWord}" がちょうど ${charLimit} 文字かどうか確認する。文字数が異なる場合は不合格。` : ''}${posLimit ? `\n    1c. 【重要】"${userWord}" に「${posLimit}」としての用法が英語の辞書上1つでもあるか確認する。用法があれば合格とし pos に「${posLimit}」と記入する（例: water は主に名詞だが「水をやる」という動詞用法があるので動詞制限でも合格）。まったく用法がない場合のみ不合格。${dictPos && dictPos !== posLimit ? `参考: JACET8000辞書の主な品詞は「${dictPos}」だが、「${posLimit}」の用法が別にあれば合格としてよい。` : dictPos ? `参考: JACET8000辞書でも品詞は「${dictPos}」。` : ''}` : ''}
     2. "${userWord}" がテーマ "${theme}" に沿っているか。
     3. "${userWord}" が履歴に含まれていないか（重複禁止）。
     4. 直前の単語 "${history[history.length - 1] || ''}" の類義語（Synonym）ならボーナス対象とする。
@@ -111,7 +115,9 @@ JSON形式のみで回答: {"is_synonym": boolean, "is_antonym": boolean, "ai_re
     {
       "is_valid": boolean,
       "reason": "不合格の場合の理由（日本語）",
-      "pos": "ユーザーの単語の主な品詞（名詞/動詞/形容詞/副詞/その他 のいずれか）",
+      "pos": "${posLimit ? `ユーザーの単語の品詞。「${posLimit}」としての用法がある場合は「${posLimit}」と書き、ない場合は主な品詞を書く` : 'ユーザーの単語の主な品詞'}（名詞/動詞/形容詞/副詞/その他 のいずれか）",
+      "user_level_estimate": ユーザーの単語の難易度をJACET8000基準で1〜8の整数で推定（1=中学基礎レベル、4=大学受験レベル、8=最難関・専門レベル）,
+      "ai_level_estimate": ai_responseの単語の難易度を同じ基準で1〜8の整数で推定（solo時のみ、pvpなら0）,
       "is_synonym": boolean,
       "is_antonym": boolean,
       "ai_response": "AIの回答（solo時のみ）",
@@ -132,22 +138,38 @@ JSON形式のみで回答: {"is_synonym": boolean, "is_antonym": boolean, "ai_re
     const aiData = JSON.parse(response.choices[0].message.content || '{}');
 
     // 品詞制限の二重チェック: AI判定と辞書のどちらも制限品詞に一致しない場合は不合格にする
+    // （aiPos は「水をやる」のような別品詞の用法も含めて判定させているため includes で照合する）
     if (posLimit && aiData.is_valid) {
       const aiPos = String(aiData.pos ?? '');
-      if (aiPos !== posLimit && dictPos !== posLimit && (aiPos || dictPos)) {
+      if (!aiPos.includes(posLimit) && dictPos !== posLimit && (aiPos || dictPos)) {
         aiData.is_valid = false;
         aiData.reason = `「${userWord}」は${posLimit}ではありません（品詞: ${dictPos || aiPos}）`;
       }
     }
 
-    // JACET8000 からレベルを取得してスコア計算
+    // JACET8000 からレベルを取得してスコア計算（リスト外の単語はAIの推定レベルで代用）
+    const toLevel = (est: unknown): string | null => {
+      const n = Number(est);
+      return Number.isInteger(n) && n >= 1 && n <= 8 ? `Level ${n}` : null;
+    };
+
     const userEntry = lookupEntry(userWord);
-    const jacetLevel = userEntry?.level ?? 'Unknown';
+    let jacetLevel = userEntry?.level ?? 'Unknown';
+    let levelEstimated = false;
+    if (jacetLevel === 'Unknown') {
+      const est = toLevel(aiData.user_level_estimate);
+      if (est) { jacetLevel = est; levelEstimated = true; }
+    }
     const finalScore = calculateScore(jacetLevel, aiData.is_synonym, aiData.is_antonym);
 
-    // AI の返答のレベルも取得
+    // AI の返答のレベルも取得（同様にリスト外は推定）
     const aiEntry = aiData.ai_response ? lookupEntry(aiData.ai_response) : undefined;
-    const aiJacetLevel = aiEntry?.level ?? 'Unknown';
+    let aiJacetLevel = aiEntry?.level ?? 'Unknown';
+    let aiLevelEstimated = false;
+    if (aiData.ai_response && aiJacetLevel === 'Unknown') {
+      const est = toLevel(aiData.ai_level_estimate);
+      if (est) { aiJacetLevel = est; aiLevelEstimated = true; }
+    }
 
     // 日本語訳（Excelから優先、なければAIのfallback）
     const userWordJp = lookupTranslation(userWord);
@@ -158,7 +180,9 @@ JSON形式のみで回答: {"is_synonym": boolean, "is_antonym": boolean, "ai_re
     return NextResponse.json({
       ...aiData,
       jacet_level: jacetLevel,
+      level_estimated: levelEstimated,
       ai_jacet_level: aiJacetLevel,
+      ai_level_estimated: aiLevelEstimated,
       ai_response_jp: aiResponseJp,
       user_word_jp: userWordJp,
       score: finalScore,

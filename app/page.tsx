@@ -9,6 +9,8 @@ import ResultScreen from '@/components/ResultScreen';
 export default function Game() {
   const [showTop, setShowTop] = useState(true);
   const [isPvP, setIsPvP] = useState(false);
+  // 逆転モード: 相手のスコアを超えるまでターンが交代しない
+  const [isOvertake, setIsOvertake] = useState(false);
   const [currentPlayer, setCurrentPlayer] = useState(1);
   const [isGameOver, setIsGameOver] = useState(false);
   const [losingPlayer, setLosingPlayer] = useState<number | null>(null);
@@ -24,8 +26,7 @@ export default function Game() {
   const [posLimit, setPosLimit] = useState<string | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
-  const goToTop = () => {
-    setShowTop(true);
+  const resetGame = () => {
     setIsThemeSet(false);
     setIsGameOver(false);
     setLosingPlayer(null);
@@ -41,20 +42,9 @@ export default function Game() {
     setErrorMsg('');
   };
 
-  const resetGame = () => {
-    setIsThemeSet(false);
-    setIsGameOver(false);
-    setLosingPlayer(null);
-    setGameOverReason('');
-    setHistory([]);
-    setTotalScore(0);
-    setScores({ p1: 0, p2: 0 });
-    setInput('');
-    setTheme('');
-    setCurrentPlayer(1);
-    setCharLimit(null);
-    setPosLimit(null);
-    setErrorMsg('');
+  const goToTop = () => {
+    resetGame();
+    setShowTop(true);
   };
 
   const rematch = () => {
@@ -94,20 +84,26 @@ export default function Game() {
       if (data.is_valid) {
         if (isPvP) {
           const playerKey = currentPlayer === 1 ? 'p1' : 'p2';
+          const newScore = scores[playerKey] + data.score;
+          const opponentScore = currentPlayer === 1 ? scores.p2 : scores.p1;
           setScores(prev => ({ ...prev, [playerKey]: prev[playerKey] + data.score }));
           setHistory(prev => [...prev, {
             word,
             translation: data.is_synonym ? '🔥 類義語ボーナス x2!' : data.is_antonym ? '❄️ 対義語ボーナス x2!' : `プレイヤー ${currentPlayer}`,
             isUser: currentPlayer === 1,
             level: data.jacet_level,
+            levelEstimated: data.level_estimated,
             score: data.score,
           }]);
-          setCurrentPlayer(prev => prev === 1 ? 2 : 1);
+          // 逆転モードでは相手のスコアを超えたときだけ交代する
+          if (!isOvertake || newScore > opponentScore) {
+            setCurrentPlayer(prev => prev === 1 ? 2 : 1);
+          }
         } else {
           setTotalScore(prev => prev + data.score);
           setHistory(prev => [...prev,
-            { word, translation: data.is_synonym ? '🔥 類義語ボーナス x2!' : data.is_antonym ? '❄️ 対義語ボーナス x2!' : (data.user_word_jp || ''), isUser: true, level: data.jacet_level, score: data.score },
-            ...(data.ai_response ? [{ word: data.ai_response, translation: data.ai_response_jp, isUser: false, level: data.ai_jacet_level }] : []),
+            { word, translation: data.is_synonym ? '🔥 類義語ボーナス x2!' : data.is_antonym ? '❄️ 対義語ボーナス x2!' : (data.user_word_jp || ''), isUser: true, level: data.jacet_level, levelEstimated: data.level_estimated, score: data.score },
+            ...(data.ai_response ? [{ word: data.ai_response, translation: data.ai_response_jp, isUser: false, level: data.ai_jacet_level, levelEstimated: data.ai_level_estimated }] : []),
           ]);
         }
         setInput('');
@@ -225,6 +221,8 @@ export default function Game() {
           <Lobby
             isPvP={isPvP}
             setIsPvP={setIsPvP}
+            isOvertake={isOvertake}
+            setIsOvertake={setIsOvertake}
             theme={theme}
             setTheme={setTheme}
             charLimit={charLimit}
@@ -239,6 +237,7 @@ export default function Game() {
         {screen === 'game' && (
           <GameBoard
             isPvP={isPvP}
+            isOvertake={isOvertake}
             currentPlayer={currentPlayer}
             scores={scores}
             totalScore={totalScore}

@@ -7,7 +7,8 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const level = searchParams.get('level');
   const genre = searchParams.get('genre');
-  const limit = parseInt(searchParams.get('limit') ?? '20');
+  const parsedLimit = parseInt(searchParams.get('limit') ?? '20', 10);
+  const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 20;
 
   const sort = searchParams.get('sort');
 
@@ -22,9 +23,18 @@ export async function GET(req: Request) {
       if (genres.length) words = words.filter(w => genres.includes(w.genre));
     }
 
-    const result = sort === 'rank'
-      ? [...words].sort((a, b) => a.rank - b.rank)
-      : [...words].sort(() => Math.random() - 0.5).slice(0, limit);
+    let result: WordEntry[];
+    if (sort === 'rank') {
+      result = [...words].sort((a, b) => a.rank - b.rank);
+    } else {
+      // Fisher-Yates シャッフルからランダムに limit 件取る
+      const shuffled = [...words];
+      for (let i = shuffled.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [shuffled[i], shuffled[j]] = [shuffled[j], shuffled[i]];
+      }
+      result = shuffled.slice(0, limit);
+    }
 
     const genres = [...new Set(loadWords().map(w => w.genre))].filter(Boolean);
     const levels = [...new Set(loadWords().map(w => w.level))].filter(Boolean);

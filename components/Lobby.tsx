@@ -1,6 +1,8 @@
 interface LobbyProps {
   isPvP: boolean;
   setIsPvP: (v: boolean) => void;
+  isOvertake: boolean;
+  setIsOvertake: (v: boolean) => void;
   theme: string;
   setTheme: (v: string) => void;
   charLimit: number | null;
@@ -19,7 +21,7 @@ const MODES = [
   { label: '対戦', sub: '2人で勝負', icon: '⚔️', pvp: true,  gradient: 'from-rose-500 to-pink-600 shadow-rose-500/30' },
 ] as const;
 
-export default function Lobby({ isPvP, setIsPvP, theme, setTheme, charLimit, setCharLimit, posLimit, setPosLimit, onStart, onBack }: LobbyProps) {
+export default function Lobby({ isPvP, setIsPvP, isOvertake, setIsOvertake, theme, setTheme, charLimit, setCharLimit, posLimit, setPosLimit, onStart, onBack }: LobbyProps) {
   return (
     <div className="w-full max-w-sm mx-auto flex flex-col gap-3">
       <header className="mb-5">
@@ -53,6 +55,42 @@ export default function Lobby({ isPvP, setIsPvP, theme, setTheme, charLimit, set
             </button>
           ))}
         </div>
+
+        {/* ターン交代ルール（対戦時のみ） */}
+        {isPvP && (
+          <div className="mt-4 animate-fade-up">
+            <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2">ターン交代ルール</p>
+            <div className="grid grid-cols-2 gap-2">
+              <button
+                onClick={() => setIsOvertake(false)}
+                className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border ${
+                  !isOvertake
+                    ? 'bg-rose-500/25 border-rose-400/50 text-rose-200'
+                    : 'bg-white/5 text-white/40 hover:bg-white/10 border-white/10'
+                }`}
+              >
+                <div>交互</div>
+                <div className="text-[10px] opacity-60 mt-0.5 font-medium">1語ごとに交代</div>
+              </button>
+              <button
+                onClick={() => setIsOvertake(true)}
+                className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border ${
+                  isOvertake
+                    ? 'bg-rose-500/25 border-rose-400/50 text-rose-200'
+                    : 'bg-white/5 text-white/40 hover:bg-white/10 border-white/10'
+                }`}
+              >
+                <div>スコア</div>
+                <div className="text-[10px] opacity-60 mt-0.5 font-medium">相手を超えるまで続ける</div>
+              </button>
+            </div>
+            {isOvertake && (
+              <p className="text-[11px] text-white/30 mt-2">
+                相手のスコアを超えるまで連続で回答。難しい単語で一気に逆転しよう。
+              </p>
+            )}
+          </div>
+        )}
       </div>
 
       {/* テーマ入力 */}
@@ -119,14 +157,14 @@ export default function Lobby({ isPvP, setIsPvP, theme, setTheme, charLimit, set
         </div>
         {charLimit !== null ? (
           <div className="flex items-center gap-3">
-            <button onClick={() => setCharLimit(Math.max(2, charLimit - 1))}
-              className="w-10 h-10 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-colors border border-white/10">−</button>
+            <button onClick={() => setCharLimit(Math.max(2, charLimit - 1))} disabled={charLimit <= 2}
+              className="w-10 h-10 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-colors border border-white/10 disabled:opacity-20 disabled:cursor-not-allowed">−</button>
             <div className="flex-1 text-center">
-              <span className="text-3xl font-black text-white">{charLimit}</span>
+              <span className="text-3xl font-black text-white tabular-nums">{charLimit}</span>
               <span className="text-sm text-white/40 ml-1">文字</span>
             </div>
-            <button onClick={() => setCharLimit(Math.min(12, charLimit + 1))}
-              className="w-10 h-10 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-colors border border-white/10">＋</button>
+            <button onClick={() => setCharLimit(Math.min(12, charLimit + 1))} disabled={charLimit >= 12}
+              className="w-10 h-10 rounded-xl bg-white/10 text-white font-bold hover:bg-white/20 transition-colors border border-white/10 disabled:opacity-20 disabled:cursor-not-allowed">＋</button>
           </div>
         ) : (
           <p className="text-xs text-white/30">オフのときは文字数制限なし</p>
