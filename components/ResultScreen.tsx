@@ -20,6 +20,8 @@ export default function ResultScreen({
   const p1Words = history.filter(h => h.isUser).length;
   const p2Words = history.filter(h => !h.isUser).length;
   const soloWords = history.filter(h => h.isUser).length;
+  // 両者合わせて何語続いたか（=ラリー数）
+  const rallyCount = history.length;
 
   // ソロでは AI の単語を除き、自分が回答した単語だけを集計する
   const levelCounts = (isPvP ? history : history.filter(h => h.isUser))
@@ -74,6 +76,10 @@ export default function ResultScreen({
         <div className="px-6 pb-6">
           {isPvP ? (
             <div className="flex flex-col gap-3">
+              <div className="flex justify-between items-center py-2 border-b border-white/10">
+                <span className="text-sm text-white/40">🔗 続いたラリー</span>
+                <span className="font-black text-white">{rallyCount} 語</span>
+              </div>
               <div className="grid grid-cols-2 gap-3">
                 {([1, 2] as const).map(p => {
                   const isWinner = p === winningPlayer;
@@ -113,6 +119,10 @@ export default function ResultScreen({
             </div>
           ) : (
             <div className="space-y-3">
+              <div className="flex justify-between items-center py-2 border-b border-white/10">
+                <span className="text-sm text-white/40">🔗 続いたラリー</span>
+                <span className="font-black text-white">{rallyCount} 語</span>
+              </div>
               <div className="flex justify-between items-center py-2 border-b border-white/10">
                 <span className="text-sm text-white/40">回答した単語数</span>
                 <span className="font-black text-white">{soloWords} 語</span>
