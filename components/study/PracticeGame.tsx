@@ -1,4 +1,4 @@
-import { useRef, useEffect } from 'react';
+import { useRef, useEffect, useState } from 'react';
 import { LEVEL_BADGE } from '@/lib/constants';
 import type { WordEntry, PracticeMessage } from '@/types/study';
 
@@ -11,6 +11,7 @@ const COLORS: Record<Variant, {
   chipHover: string;
   spinner: string;
   restartBtn: string;
+  inputFocus: string;
 }> = {
   violet: {
     scoreBadge:  'from-violet-500/20 to-indigo-500/20 border-violet-400/20',
@@ -19,6 +20,7 @@ const COLORS: Record<Variant, {
     chipHover:   'hover:bg-violet-500/20 hover:border-violet-400/30',
     spinner:     'border-violet-400/40 border-t-violet-400',
     restartBtn:  'from-violet-500 to-indigo-600',
+    inputFocus:  'focus:border-violet-400/60',
   },
   amber: {
     scoreBadge:  'from-amber-500/20 to-orange-500/20 border-amber-400/20',
@@ -27,6 +29,7 @@ const COLORS: Record<Variant, {
     chipHover:   'hover:bg-amber-500/20 hover:border-amber-400/30',
     spinner:     'border-amber-400/40 border-t-amber-400',
     restartBtn:  'from-amber-500 to-orange-600',
+    inputFocus:  'focus:border-amber-400/60',
   },
 };
 
@@ -38,19 +41,32 @@ interface Props {
   gameOverReason: string;
   gameLoading: boolean;
   errorMsg?: string;
-  onPlayWord: (word: string) => void;
+  /** 単語をプレイする。入力モードでは戻り値 false のとき入力欄を保持する */
+  onPlayWord: (word: string) => void | boolean | Promise<void | boolean>;
   onRestart: () => void;
   onBack: () => void;
   backLabel?: string;
   variant?: Variant;
+  /** true なら日本語訳をヒントに英単語をタイピングして答える（リスト外は不合格） */
+  inputMode?: boolean;
 }
 
 export default function PracticeGame({
   wordList, history, score, gameOver, gameOverReason,
   gameLoading, errorMsg, onPlayWord, onRestart, onBack, backLabel = '← 戻る', variant = 'violet',
+  inputMode = false,
 }: Props) {
   const c = COLORS[variant];
   const chatRef = useRef<HTMLDivElement>(null);
+  const [typedWord, setTypedWord] = useState('');
+
+  // 入力モード: 合格したときだけ入力欄をクリアする（不合格なら打ち直せるよう保持）
+  const submitTyped = async () => {
+    const w = typedWord.trim();
+    if (!w || gameLoading || gameOver) return;
+    const result = await onPlayWord(w);
+    if (result !== false) setTypedWord('');
+  };
 
   useEffect(() => {
     const el = chatRef.current;
@@ -154,7 +170,11 @@ export default function PracticeGame({
       ) : (
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4">
           <p className="text-xs text-white/30 mb-3">
-            {gameLoading ? 'AI が考え中...' : `残り ${remaining.length} 語（タップして使う）`}
+            {gameLoading
+              ? 'AI が考え中...'
+              : inputMode
+                ? `残り ${remaining.length} 語（日本語訳をヒントに英単語を入力）`
+                : `残り ${remaining.length} 語（タップして使う）`}
           </p>
           {gameLoading ? (
             <div className="flex justify-center py-2">
@@ -162,6 +182,37 @@ export default function PracticeGame({
             </div>
           ) : remaining.length === 0 ? (
             <p className="text-white/30 text-sm text-center py-2">使える単語がありません</p>
+          ) : inputMode ? (
+            <>
+              {/* 日本語訳のヒント一覧（英単語は見せない） */}
+              <div className="flex flex-wrap gap-1.5 max-h-28 overflow-y-auto mb-3">
+                {remaining.map(w => (
+                  <span
+                    key={w.word}
+                    className="text-[11px] font-bold text-white/50 bg-white/5 border border-white/10 px-2.5 py-1 rounded-full"
+                  >
+                    {w.translation || '？'}
+                  </span>
+                ))}
+              </div>
+              <div className="flex items-center gap-2">
+                <input
+                  className={`flex-1 min-w-0 bg-white/10 border border-white/10 rounded-xl px-3 py-2.5 outline-none text-white font-bold placeholder:text-white/20 transition-colors ${c.inputFocus}`}
+                  value={typedWord}
+                  onChange={e => setTypedWord(e.target.value)}
+                  onKeyDown={e => e.key === 'Enter' && !e.nativeEvent.isComposing && submitTyped()}
+                  placeholder="リストの英単語を入力..."
+                  autoFocus
+                />
+                <button
+                  onClick={submitTyped}
+                  disabled={gameLoading || !typedWord.trim()}
+                  className={`px-5 py-2.5 rounded-xl font-black text-white bg-gradient-to-r ${c.restartBtn} shadow-lg transition-all active:scale-95 disabled:opacity-30 shrink-0`}
+                >
+                  送信
+                </button>
+              </div>
+            </>
           ) : (
             <div className="grid grid-cols-2 gap-2 max-h-52 overflow-y-auto">
               {remaining.map(w => (

@@ -3,9 +3,53 @@ import { NextResponse } from 'next/server';
 import { calculateScore } from '@/utils/scoreCalculator';
 import { lookupTranslation, lookupEntry } from '@/lib/wordLoader';
 
+/**
+ * スペルチェックモード用: 単語にそれらしいタイポを1つ仕込む。
+ * 生成できない場合は null を返す。
+ */
+function makeTypo(word: string): string | null {
+  const w = word.toLowerCase();
+  if (w.length < 3 || !/^[a-z]+$/.test(w)) return null;
+
+  const VOWELS = 'aeiou';
+  const ops: (() => string)[] = [
+    // 隣接する2文字の入れ替え（先頭以外）
+    () => {
+      const i = 1 + Math.floor(Math.random() * (w.length - 2));
+      return w.slice(0, i) + w[i + 1] + w[i] + w.slice(i + 2);
+    },
+    // 1文字削除（先頭以外・短い単語では不自然になるため4文字以上のみ）
+    () => {
+      if (w.length < 4) return w;
+      const i = 1 + Math.floor(Math.random() * (w.length - 1));
+      return w.slice(0, i) + w.slice(i + 1);
+    },
+    // 1文字重複
+    () => {
+      const i = 1 + Math.floor(Math.random() * (w.length - 1));
+      return w.slice(0, i) + w[i] + w.slice(i);
+    },
+    // 母音を別の母音に置換（先頭以外）
+    () => {
+      const idxs = [...w].map((c, i) => (i > 0 && VOWELS.includes(c) ? i : -1)).filter(i => i >= 0);
+      if (idxs.length === 0) return w;
+      const i = idxs[Math.floor(Math.random() * idxs.length)];
+      const others = VOWELS.replace(w[i], '');
+      return w.slice(0, i) + others[Math.floor(Math.random() * others.length)] + w.slice(i + 1);
+    },
+  ];
+
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const typo = ops[Math.floor(Math.random() * ops.length)]();
+    // 偶然実在する単語（JACET8000に載っている語）になったら作り直す
+    if (typo !== w && typo.length >= 2 && !lookupEntry(typo)) return typo;
+  }
+  return null;
+}
+
 export async function POST(req: Request) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const { theme, userWord, history, mode, charLimit, posLimit, practiceWords } = await req.json();
+  const { theme, themeDefinition, userWord, history, mode, charLimit, posLimit, spellTrap, practiceWords } = await req.json();
 
   if (typeof userWord !== 'string' || !userWord.trim() || !Array.isArray(history)) {
     return NextResponse.json({ error: '不正なリクエストです' }, { status: 400 });
@@ -96,20 +140,22 @@ JSON形式のみで回答: {"is_synonym": boolean, "is_antonym": boolean, "ai_re
 
     【現在の状況】
     - ゲームモード: ${mode === 'pvp' ? '対戦モード(PvP)' : '1人用モード(Solo)'}
-    - テーマ: ${theme}${posLimit ? `\n    - 品詞制限: 「${posLimit}」の単語のみ使用可` : ''}${charLimit !== null ? `\n    - 文字数制限: ちょうど ${charLimit} 文字` : ''}
+    - テーマ: ${theme}${themeDefinition ? `\n    - お題の定義: ${themeDefinition}` : ''}${posLimit ? `\n    - 品詞制限: 「${posLimit}」の単語のみ使用可` : ''}${charLimit !== null ? `\n    - 文字数制限: ちょうど ${charLimit} 文字` : ''}
     - 履歴（使用済み単語）: [${history.join(', ')}]
     - ユーザーの入力: ${userWord}
 
     【判定ルール】
     1. "${userWord}" が英語の単語かどうか確認する。英語以外（日本語、数字、記号など）は即座に不合格。${charLimit !== null ? `\n    1b. "${userWord}" がちょうど ${charLimit} 文字かどうか確認する。文字数が異なる場合は不合格。` : ''}${posLimit ? `\n    1c. 【重要】"${userWord}" に「${posLimit}」としての用法が英語の辞書上1つでもあるか確認する。用法があれば合格とし pos に「${posLimit}」と記入する（例: water は主に名詞だが「水をやる」という動詞用法があるので動詞制限でも合格）。まったく用法がない場合のみ不合格。${dictPos && dictPos !== posLimit ? `参考: JACET8000辞書の主な品詞は「${dictPos}」だが、「${posLimit}」の用法が別にあれば合格としてよい。` : dictPos ? `参考: JACET8000辞書でも品詞は「${dictPos}」。` : ''}` : ''}
-    2. "${userWord}" がテーマ "${theme}" に沿っているか。
+    2. 【最重要・古今東西ゲームのルール】"${userWord}" が「${theme}」というカテゴリに属する具体例（実例・メンバー）かどうかを判定する。${themeDefinition ? `\n       お題の定義「${themeDefinition}」に照らして判定すること。` : ''}
+       テーマに関連・連想されるだけでカテゴリの実例ではない単語は不合格。
+       例: テーマが ANIMAL の場合 → dog は合格（動物の実例）／ zoo は不合格（関連するが動物ではない）／ cute は不合格（連想語）。
     3. "${userWord}" が履歴に含まれていないか（重複禁止）。
     4. 直前の単語 "${history[history.length - 1] || ''}" の類義語（Synonym）ならボーナス対象とする。
     5. 直前の単語 "${history[history.length - 1] || ''}" の対義語（Antonym）ならボーナス対象とする。類義語と対義語が同時に成立することはない。
 
     【AIの挙動】
     - モードが "pvp" の場合: 判定のみを行い、ai_response は空文字にしてください。
-    - モードが "solo" の場合: 合格なら、履歴にない新しい単語を一つ選び ai_response に入れてください。ai_response もテーマ${charLimit !== null ? `・文字数制限（${charLimit}文字）` : ''}${posLimit ? `・品詞制限（${posLimit}）` : ''}に従うこと。
+    - モードが "solo" の場合: 合格なら、履歴にない新しい単語を一つ選び ai_response に入れてください。ai_response もテーマの実例${charLimit !== null ? `・文字数制限（${charLimit}文字）` : ''}${posLimit ? `・品詞制限（${posLimit}）` : ''}であること。
 
     必ず以下のJSON形式でのみ回答してください：
     {
@@ -177,8 +223,23 @@ JSON形式のみで回答: {"is_synonym": boolean, "is_antonym": boolean, "ai_re
       ? (lookupTranslation(aiData.ai_response) || aiData.ai_response_jp)
       : aiData.ai_response_jp;
 
+    // スペルチェックモード: ソロのAI返答に約35%の確率でタイポを仕込む
+    // （レベル・日本語訳は正しい単語で引いてあるので表示はそのまま使える）
+    let aiDisplayWord = aiData.ai_response || '';
+    let aiMisspelled = false;
+    if (spellTrap && mode === 'solo' && aiData.is_valid && aiDisplayWord && Math.random() < 0.35) {
+      const typo = makeTypo(aiDisplayWord);
+      if (typo) {
+        aiDisplayWord = typo;
+        aiMisspelled = true;
+      }
+    }
+
     return NextResponse.json({
       ...aiData,
+      ai_response: aiDisplayWord,
+      ai_correct_word: aiData.ai_response || '',
+      ai_misspelled: aiMisspelled,
       jacet_level: jacetLevel,
       level_estimated: levelEstimated,
       ai_jacet_level: aiJacetLevel,

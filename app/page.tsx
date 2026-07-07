@@ -9,8 +9,11 @@ import ResultScreen from '@/components/ResultScreen';
 export default function Game() {
   const [showTop, setShowTop] = useState(true);
   const [isPvP, setIsPvP] = useState(false);
-  // 逆転モード: 相手のスコアを超えるまでターンが交代しない
+  // スコアモード: 相手のスコアを超えるまでターンが交代しない
   const [isOvertake, setIsOvertake] = useState(false);
+  // スペルチェックモード（ソロ専用）: AIがときどきスペルを間違える
+  const [isSpellTrap, setIsSpellTrap] = useState(false);
+  const [spellWin, setSpellWin] = useState(false);
   const [currentPlayer, setCurrentPlayer] = useState(1);
   const [isGameOver, setIsGameOver] = useState(false);
   const [losingPlayer, setLosingPlayer] = useState<number | null>(null);
@@ -18,12 +21,17 @@ export default function Game() {
   const [scores, setScores] = useState({ p1: 0, p2: 0 });
   const [theme, setTheme] = useState('');
   const [isThemeSet, setIsThemeSet] = useState(false);
+  // ゲーム開始時に1回だけ生成するお題の定義。全判定で共有して基準のブレをなくす
+  const [themeDefinition, setThemeDefinition] = useState('');
+  const [startingGame, setStartingGame] = useState(false);
   const [input, setInput] = useState('');
   const [history, setHistory] = useState<ChatMessage[]>([]);
   const [totalScore, setTotalScore] = useState(0);
   const [loading, setLoading] = useState(false);
   const [charLimit, setCharLimit] = useState<number | null>(null);
   const [posLimit, setPosLimit] = useState<string | null>(null);
+  // 1手ごとの制限時間（秒）。null は無制限
+  const [timeLimit, setTimeLimit] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
 
   const resetGame = () => {
@@ -39,6 +47,9 @@ export default function Game() {
     setCurrentPlayer(1);
     setCharLimit(null);
     setPosLimit(null);
+    setTimeLimit(null);
+    setThemeDefinition('');
+    setSpellWin(false);
     setErrorMsg('');
   };
 
@@ -56,7 +67,27 @@ export default function Game() {
     setScores({ p1: 0, p2: 0 });
     setInput('');
     setCurrentPlayer(1);
+    setSpellWin(false);
     setErrorMsg('');
+  };
+
+  // ゲーム開始: お題の定義を生成してから対戦画面へ（失敗しても定義なしで開始する）
+  const startGame = async () => {
+    if (startingGame || !theme.trim()) return;
+    setStartingGame(true);
+    try {
+      const res = await fetch('/api/theme', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ theme }),
+      });
+      const data = await res.json();
+      setThemeDefinition(typeof data.definition === 'string' ? data.definition : '');
+    } catch {
+      setThemeDefinition('');
+    }
+    setStartingGame(false);
+    setIsThemeSet(true);
   };
 
   const playTurn = async () => {
@@ -72,14 +103,24 @@ export default function Game() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           theme,
+          themeDefinition,
           userWord: word,
-          history: history.map(h => h.word),
+          // 重複チェックにはタイポ表示ではなく正しいスペルを渡す
+          history: history.map(h => h.correctWord ?? h.word),
           mode: isPvP ? 'pvp' : 'solo',
           charLimit,
           posLimit,
+          spellTrap: !isPvP && isSpellTrap,
         }),
       });
       const data = await res.json();
+
+      // サーバーエラー（判定不能）はゲームオーバーにせずエラー表示に留める
+      if (!res.ok || typeof data.is_valid !== 'boolean') {
+        setErrorMsg(data?.error || '通信エラーが発生しました。もう一度お試しください。');
+        setLoading(false);
+        return;
+      }
 
       if (data.is_valid) {
         if (isPvP) {
@@ -103,7 +144,7 @@ export default function Game() {
           setTotalScore(prev => prev + data.score);
           setHistory(prev => [...prev,
             { word, translation: data.is_synonym ? '🔥 類義語ボーナス x2!' : data.is_antonym ? '❄️ 対義語ボーナス x2!' : (data.user_word_jp || ''), isUser: true, level: data.jacet_level, levelEstimated: data.level_estimated, score: data.score },
-            ...(data.ai_response ? [{ word: data.ai_response, translation: data.ai_response_jp, isUser: false, level: data.ai_jacet_level, levelEstimated: data.ai_level_estimated }] : []),
+            ...(data.ai_response ? [{ word: data.ai_response, translation: data.ai_response_jp, isUser: false, level: data.ai_jacet_level, levelEstimated: data.ai_level_estimated, correctWord: data.ai_misspelled ? data.ai_correct_word : undefined }] : []),
           ]);
         }
         setInput('');
@@ -116,6 +157,28 @@ export default function Game() {
       setErrorMsg('通信エラーが発生しました。もう一度お試しください。');
     }
     setLoading(false);
+  };
+
+  // スペルチェックモード: 直前のAIの単語のスペルミスを指摘する
+  const challengeSpelling = () => {
+    if (loading || isGameOver) return;
+    const last = history[history.length - 1];
+    if (!last || last.isUser) return;
+    if (last.correctWord) {
+      setSpellWin(true);
+      setGameOverReason(`🎉 スペルミスを見抜いた！「${last.word}」の正しいスペルは「${last.correctWord}」。あなたの勝ち！`);
+    } else {
+      setGameOverReason(`「${last.word}」は正しいスペルでした…。誤指摘であなたの負け。`);
+    }
+    setIsGameOver(true);
+  };
+
+  // 時間切れ: そのターンのプレイヤーの負け
+  const handleTimeout = () => {
+    if (isGameOver) return;
+    setGameOverReason('⏰ 時間切れ！');
+    if (isPvP) setLosingPlayer(currentPlayer);
+    setIsGameOver(true);
   };
 
   const screen = showTop ? 'top' : !isThemeSet ? 'lobby' : isGameOver ? 'result' : 'game';
@@ -223,13 +286,18 @@ export default function Game() {
             setIsPvP={setIsPvP}
             isOvertake={isOvertake}
             setIsOvertake={setIsOvertake}
+            isSpellTrap={isSpellTrap}
+            setIsSpellTrap={setIsSpellTrap}
             theme={theme}
             setTheme={setTheme}
             charLimit={charLimit}
             setCharLimit={setCharLimit}
             posLimit={posLimit}
             setPosLimit={setPosLimit}
-            onStart={() => setIsThemeSet(true)}
+            timeLimit={timeLimit}
+            setTimeLimit={setTimeLimit}
+            starting={startingGame}
+            onStart={startGame}
             onBack={goToTop}
           />
         )}
@@ -242,8 +310,13 @@ export default function Game() {
             scores={scores}
             totalScore={totalScore}
             theme={theme}
+            themeDefinition={themeDefinition}
             charLimit={charLimit}
             posLimit={posLimit}
+            timeLimit={timeLimit}
+            onTimeout={handleTimeout}
+            isSpellTrap={!isPvP && isSpellTrap}
+            onChallenge={challengeSpelling}
             history={history}
             input={input}
             setInput={setInput}
@@ -264,6 +337,7 @@ export default function Game() {
             history={history}
             theme={theme}
             reason={gameOverReason}
+            spellWin={spellWin}
             onRematch={rematch}
             onReset={resetGame}
           />

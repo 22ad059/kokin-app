@@ -90,6 +90,7 @@ export default function StudyPage() {
     if (options.sort) params.set('sort', options.sort);
     const res = await fetch(`/api/words?${params}`);
     const data = await res.json();
+    if (!res.ok) throw new Error(data?.error || 'failed to fetch words');
     return (data.words ?? []) as WordEntry[];
   }, [selectedLevels, selectedGenres]);
 
@@ -160,6 +161,11 @@ export default function StudyPage() {
         }),
       });
       const data = await res.json();
+      if (!res.ok || typeof data.is_valid !== 'boolean') {
+        setPracticeError(data?.error || '通信エラーが発生しました。もう一度お試しください。');
+        setPracticeLoading(false);
+        return;
+      }
       if (!data.is_valid) { setPracticeError(data.reason || 'その単語は使えません。'); setPracticeLoading(false); return; }
 
       const newEntries: PracticeMessage[] = [

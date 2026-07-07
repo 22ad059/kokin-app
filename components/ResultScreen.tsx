@@ -9,13 +9,17 @@ interface ResultScreenProps {
   history: ChatMessage[];
   theme: string;
   reason: string;
+  /** スペルチェックモードで指摘に成功して勝った場合 true */
+  spellWin?: boolean;
   onRematch: () => void;
   onReset: () => void;
 }
 
 export default function ResultScreen({
-  isPvP, losingPlayer, scores, totalScore, history, theme, reason, onRematch, onReset,
+  isPvP, losingPlayer, scores, totalScore, history, theme, reason, spellWin, onRematch, onReset,
 }: ResultScreenProps) {
+  // スペルチェックモードでAIが仕込んだタイポの一覧
+  const misspelled = history.filter(h => h.correctWord);
   const winningPlayer = losingPlayer === 1 ? 2 : 1;
   const p1Words = history.filter(h => h.isUser).length;
   const p2Words = history.filter(h => !h.isUser).length;
@@ -57,7 +61,7 @@ export default function ResultScreen({
             </>
           ) : (
             <>
-              <p className="text-5xl mb-3 animate-pop-in">🎯</p>
+              <p className="text-5xl mb-3 animate-pop-in">{spellWin ? '🏆' : '🎯'}</p>
               <p className="text-5xl font-black text-white tabular-nums drop-shadow-[0_0_16px_rgba(129,140,248,0.5)]">
                 {totalScore}
                 <span className="text-lg font-bold text-white/30 ml-1">pt</span>
@@ -141,6 +145,21 @@ export default function ResultScreen({
                         </span>
                       ) : null
                     )}
+                  </div>
+                </div>
+              )}
+              {misspelled.length > 0 && (
+                <div>
+                  <p className="text-xs text-white/30 mb-2">🔍 AIが仕込んだスペルミス</p>
+                  <div className="space-y-1.5">
+                    {misspelled.map((m, i) => (
+                      <div key={`${m.word}-${i}`} className="flex items-center gap-2 text-sm bg-amber-500/10 border border-amber-400/20 rounded-xl px-3 py-2">
+                        <span className="font-black text-rose-300 line-through">{m.word}</span>
+                        <span className="text-white/30">→</span>
+                        <span className="font-black text-emerald-300">{m.correctWord}</span>
+                        {m.translation && <span className="text-xs text-white/40 ml-auto">{m.translation}</span>}
+                      </div>
+                    ))}
                   </div>
                 </div>
               )}

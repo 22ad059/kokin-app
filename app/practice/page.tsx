@@ -8,9 +8,11 @@ import GenreSelector from '@/components/study/GenreSelector';
 import PracticeGame from '@/components/study/PracticeGame';
 
 type Phase = 'setup' | 'game';
+type AnswerMode = 'tap' | 'type';
 
 export default function PracticePage() {
   const [phase, setPhase] = useState<Phase>('setup');
+  const [answerMode, setAnswerMode] = useState<AnswerMode>('tap');
   const [selectedLevels, setSelectedLevels] = useState<string[]>(['Level 1', 'Level 2']);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [allGenres, setAllGenres] = useState<string[]>([]);
@@ -50,6 +52,7 @@ export default function PracticePage() {
       params.set('sort', 'rank');
       const res = await fetch(`/api/words?${params}`);
       const data = await res.json();
+      if (!res.ok) { setSetupError(data?.error || '通信エラーが発生しました。もう一度お試しください。'); return; }
       const words: WordEntry[] = data.words ?? [];
       if (words.length === 0) { setSetupError('該当する単語がありません。レベルやジャンルを変えてください。'); return; }
       setWordList(words);
@@ -64,8 +67,9 @@ export default function PracticePage() {
     } finally { setLoading(false); }
   }, [canStart, selectedLevels, selectedGenres]);
 
-  const playWord = useCallback(async (word: string) => {
-    if (gameLoading || gameOver) return;
+  // 戻り値: 合格なら true（入力モードで入力欄をクリアするかの判定に使う）
+  const playWord = useCallback(async (word: string): Promise<boolean> => {
+    if (gameLoading || gameOver) return false;
     setGameError('');
     setGameLoading(true);
     try {
@@ -80,7 +84,12 @@ export default function PracticePage() {
         }),
       });
       const data = await res.json();
-      if (!data.is_valid) { setGameError(data.reason || 'その単語は使えません。'); setGameLoading(false); return; }
+      if (!res.ok || typeof data.is_valid !== 'boolean') {
+        setGameError(data?.error || '通信エラーが発生しました。もう一度お試しください。');
+        setGameLoading(false);
+        return false;
+      }
+      if (!data.is_valid) { setGameError(data.reason || 'その単語は使えません。'); setGameLoading(false); return false; }
 
       const newEntries: PracticeMessage[] = [
         {
@@ -101,8 +110,13 @@ export default function PracticePage() {
         setGameOver(true);
         setGameOverReason('すべての単語を使い切りました！');
       }
-    } catch { setGameError('通信エラーが発生しました。もう一度お試しください。'); }
-    setGameLoading(false);
+      setGameLoading(false);
+      return true;
+    } catch {
+      setGameError('通信エラーが発生しました。もう一度お試しください。');
+      setGameLoading(false);
+      return false;
+    }
   }, [gameLoading, gameOver, history, wordList]);
 
   // ── セットアップ ──
@@ -123,6 +137,35 @@ export default function PracticePage() {
         <div className="flex flex-col gap-3">
           <LevelSelector selectedLevels={selectedLevels} onChange={setSelectedLevels} variant="amber" />
           <GenreSelector genres={allGenres} selectedGenres={selectedGenres} onChange={setSelectedGenres} variant="amber" />
+
+          {/* 回答形式 */}
+          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-5">
+            <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-3">回答形式</p>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { mode: 'tap' as const, label: '👆 タップ', sub: '選択肢から選ぶ' },
+                { mode: 'type' as const, label: '⌨️ 入力', sub: '日本語訳を見て打つ' },
+              ]).map(({ mode, label, sub }) => (
+                <button
+                  key={mode}
+                  onClick={() => setAnswerMode(mode)}
+                  className={`py-3 rounded-2xl font-bold text-sm transition-all border ${
+                    answerMode === mode
+                      ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/20 border-transparent'
+                      : 'bg-white/5 text-white/40 hover:bg-white/10 border-white/10'
+                  }`}
+                >
+                  <div>{label}</div>
+                  <div className="text-[10px] opacity-60 mt-0.5 font-medium">{sub}</div>
+                </button>
+              ))}
+            </div>
+            {answerMode === 'type' && (
+              <p className="text-[11px] text-white/30 mt-2">
+                絞り込んだリストにある英単語だけが正解。リスト外の単語は不合格になる。
+              </p>
+            )}
+          </div>
 
           {setupError && (
             <div role="alert" className="bg-rose-500/15 border border-rose-400/30 text-rose-300 text-sm font-bold rounded-2xl px-4 py-3 text-center backdrop-blur-sm">
@@ -155,6 +198,7 @@ export default function PracticePage() {
         onBack={() => { setGameError(''); setPhase('setup'); }}
         backLabel="← 設定に戻る"
         variant="amber"
+        inputMode={answerMode === 'type'}
       />
     </PageShell>
   );
