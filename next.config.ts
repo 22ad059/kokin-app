@@ -1,10 +1,9 @@
 import type { NextConfig } from "next";
+import { initOpenNextCloudflareForDev } from "@opennextjs/cloudflare";
 
-const nextConfig: NextConfig = {
-  outputFileTracingIncludes: {
-    '/api/words': ['./JACET8000_意味ジャンル×レベル別.xlsx'],
-    '/api/game':  ['./JACET8000_意味ジャンル×レベル別.xlsx'],
-  },
-};
+const nextConfig: NextConfig = {};
 
 export default nextConfig;
+
+// next dev でも Cloudflare の環境を使えるようにする
+initOpenNextCloudflareForDev();
