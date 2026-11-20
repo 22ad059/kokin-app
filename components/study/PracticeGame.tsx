@@ -108,7 +108,6 @@ export default function PracticeGame({
       <div ref={chatRef} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 h-72 overflow-y-auto flex flex-col gap-3">
         {history.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-white/20">
-            <p className="text-3xl mb-2">🎯</p>
             <p className="text-sm font-medium">下のカードから単語を選んで始めよう</p>
           </div>
         ) : (
@@ -142,14 +141,13 @@ export default function PracticeGame({
       {/* エラー表示 */}
       {errorMsg && !gameOver && (
         <div role="alert" className="bg-rose-500/15 border border-rose-400/30 text-rose-300 text-sm font-bold rounded-2xl px-4 py-3 text-center backdrop-blur-sm">
-          ⚠️ {errorMsg}
+          {errorMsg}
         </div>
       )}
 
       {/* 単語チップ or ゲームオーバー */}
       {gameOver ? (
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-6 text-center animate-fade-up">
-          <p className="text-4xl mb-3 animate-pop-in">🎉</p>
           <p className="text-white font-black text-xl">{gameOverReason}</p>
           <p className="text-white/40 text-sm mt-1">スコア: {score} pt</p>
           <div className="grid grid-cols-2 gap-3 mt-5">

@@ -171,7 +171,7 @@ export default function StudyPage() {
       const newEntries: PracticeMessage[] = [
         {
           word,
-          translation: data.is_synonym ? '🔥 類義語ボーナス x2!' : data.is_antonym ? '❄️ 対義語ボーナス x2!' : (data.user_word_jp || ''),
+          translation: data.is_synonym ? '類義語ボーナス x2!' : data.is_antonym ? '対義語ボーナス x2!' : (data.user_word_jp || ''),
           isUser: true, level: data.jacet_level, score: data.score,
         },
       ];
@@ -208,7 +208,8 @@ export default function StudyPage() {
             ← トップへ戻る
           </Link>
           <div className="flex items-center justify-center gap-2 mb-1">
-            <span className="text-3xl">📚</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/study-icon.png" alt="" className="h-9 w-auto" />
             <h1 className="text-3xl font-black tracking-tight bg-gradient-to-r from-white via-emerald-300 to-white bg-clip-text text-transparent animate-gradient-x">単語カード学習</h1>
           </div>
           <p className="text-white/40 text-sm text-center">ジャンルとレベルを選んで学習しよう</p>
@@ -261,7 +262,7 @@ export default function StudyPage() {
 
           {setupError && (
             <div role="alert" className="bg-rose-500/15 border border-rose-400/30 text-rose-300 text-sm font-bold rounded-2xl px-4 py-3 text-center backdrop-blur-sm">
-              ⚠️ {setupError}
+              {setupError}
             </div>
           )}
 
@@ -307,9 +308,8 @@ export default function StudyPage() {
           <div className="relative">
             <input type="text" value={searchQuery} onChange={e => setSearchQuery(e.target.value)}
               placeholder="単語・日本語で絞り込み..."
-              className="w-full bg-white/5 border border-white/10 backdrop-blur-sm text-white text-sm font-medium pl-10 pr-4 py-3 rounded-2xl outline-none focus:border-emerald-400/50 transition-colors placeholder:text-white/20"
+              className="w-full bg-white/5 border border-white/10 backdrop-blur-sm text-white text-sm font-medium px-4 py-3 rounded-2xl outline-none focus:border-emerald-400/50 transition-colors placeholder:text-white/20"
             />
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-white/20">🔍</span>
           </div>
 
           <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
@@ -366,7 +366,7 @@ export default function StudyPage() {
             <div className="max-w-sm mx-auto">
               <button onClick={startPractice}
                 className="w-full py-4 rounded-2xl font-black text-white bg-gradient-to-r from-violet-500 to-indigo-600 shadow-xl shadow-violet-500/30 hover:from-violet-400 hover:to-indigo-500 transition-all active:scale-95">
-                🎯 {selectedCount}語で練習ゲームを始める
+                {selectedCount}語で練習ゲームを始める
               </button>
             </div>
           </div>
@@ -459,7 +459,6 @@ export default function StudyPage() {
         </Link>
         <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl overflow-hidden">
           <div className="px-6 pt-8 pb-6 text-center bg-gradient-to-b from-emerald-500/15 to-transparent">
-            <p className="text-5xl mb-3">📖</p>
             <p className="text-2xl font-black text-white">{cards.length} 語を学習完了</p>
           </div>
           <div className="px-5 pb-5 space-y-2">

@@ -94,7 +94,7 @@ export default function PracticePage() {
       const newEntries: PracticeMessage[] = [
         {
           word,
-          translation: data.is_synonym ? '🔥 類義語ボーナス x2!' : data.is_antonym ? '❄️ 対義語ボーナス x2!' : (data.user_word_jp || ''),
+          translation: data.is_synonym ? '類義語ボーナス x2!' : data.is_antonym ? '対義語ボーナス x2!' : (data.user_word_jp || ''),
           isUser: true, level: data.jacet_level, score: data.score,
         },
       ];
@@ -128,7 +128,8 @@ export default function PracticePage() {
             ← トップへ戻る
           </Link>
           <div className="flex items-center justify-center gap-2 mb-1">
-            <span className="text-3xl">🎯</span>
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/practice-icon.png" alt="" className="h-9 w-auto" />
             <h1 className="text-3xl font-black tracking-tight bg-gradient-to-r from-white via-amber-300 to-white bg-clip-text text-transparent animate-gradient-x">練習ゲーム</h1>
           </div>
           <p className="text-white/40 text-sm text-center">レベルとジャンルを選んで単語で対戦しよう</p>
@@ -143,8 +144,8 @@ export default function PracticePage() {
             <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-3">回答形式</p>
             <div className="grid grid-cols-2 gap-2">
               {([
-                { mode: 'tap' as const, label: '👆 タップ', sub: '選択肢から選ぶ' },
-                { mode: 'type' as const, label: '⌨️ 入力', sub: '日本語訳を見て打つ' },
+                { mode: 'tap' as const, label: 'タップ', sub: '選択肢から選ぶ' },
+                { mode: 'type' as const, label: '入力', sub: '日本語訳を見て打つ' },
               ]).map(({ mode, label, sub }) => (
                 <button
                   key={mode}
@@ -169,13 +170,13 @@ export default function PracticePage() {
 
           {setupError && (
             <div role="alert" className="bg-rose-500/15 border border-rose-400/30 text-rose-300 text-sm font-bold rounded-2xl px-4 py-3 text-center backdrop-blur-sm">
-              ⚠️ {setupError}
+              {setupError}
             </div>
           )}
 
           <button onClick={startPractice} disabled={!canStart}
             className="w-full py-4 rounded-2xl font-black text-white text-base bg-gradient-to-r from-amber-500 to-orange-600 shadow-xl hover:from-amber-400 hover:to-orange-500 transition-all active:scale-95 disabled:opacity-20 disabled:cursor-not-allowed animate-glow [--glow:rgba(245,158,11,0.35)]">
-            {loading ? '準備中...' : '🎯 練習ゲームを始める'}
+            {loading ? '準備中...' : '練習ゲームを始める'}
           </button>
         </div>
       </PageShell>

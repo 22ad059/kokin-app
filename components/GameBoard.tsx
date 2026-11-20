@@ -28,7 +28,6 @@ function TurnTimer({ seconds, paused, onTimeout }: { seconds: number; paused: bo
 
   return (
     <div className="flex items-center gap-2 px-2 pt-1.5 pb-0.5">
-      <span className="text-[10px] font-bold text-white/30">⏰</span>
       <div className="flex-1 bg-white/10 rounded-full h-1.5 overflow-hidden">
         <div
           className={`h-1.5 rounded-full ${barColor} transition-[width] duration-100 ease-linear`}
@@ -131,7 +130,7 @@ export default function GameBoard({
       {/* お題の定義（判定基準を全員に共有する） */}
       {themeDefinition && (
         <p className="text-[11px] text-white/35 text-center px-4 -mt-1 leading-relaxed">
-          📖 {themeDefinition}
+          {themeDefinition}
         </p>
       )}
 
@@ -140,7 +139,7 @@ export default function GameBoard({
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-white/60">
-              {isPvP ? (isOvertake ? 'スコアモード' : '2人対戦モード') : isSpellTrap ? '🔍 スペルチェックモード' : 'ソロモード'}
+              {isPvP ? (isOvertake ? 'スコアモード' : '2人対戦モード') : isSpellTrap ? 'スペルチェックモード' : 'ソロモード'}
             </p>
             <p className="text-lg font-black text-white mt-0.5">
               {isPvP ? `プレイヤー ${currentPlayer} の番！` : 'AI と対戦中'}
@@ -177,7 +176,6 @@ export default function GameBoard({
       <div ref={chatRef} className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl p-4 h-96 overflow-y-auto flex flex-col gap-3">
         {history.length === 0 ? (
           <div className="flex-1 flex flex-col items-center justify-center text-white/20">
-            <p className="text-4xl mb-3">💬</p>
             <p className="text-sm font-medium">最初の英単語を入力してください</p>
           </div>
         ) : (
@@ -213,14 +211,14 @@ export default function GameBoard({
           onClick={onChallenge}
           className="w-full py-2.5 rounded-2xl font-black text-sm text-amber-300 bg-amber-500/10 border border-amber-400/30 hover:bg-amber-500/20 hover:border-amber-400/50 transition-all active:scale-[0.98] backdrop-blur-sm"
         >
-          🔍 「{lastMsg.word}」のスペルミスを指摘する！
+          「{lastMsg.word}」のスペルミスを指摘する！
         </button>
       )}
 
       {/* エラー表示 */}
       {errorMsg && (
         <div role="alert" className="bg-rose-500/15 border border-rose-400/30 text-rose-300 text-sm font-bold rounded-2xl px-4 py-3 text-center backdrop-blur-sm">
-          ⚠️ {errorMsg}
+          {errorMsg}
         </div>
       )}
 

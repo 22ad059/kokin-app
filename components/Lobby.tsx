@@ -22,8 +22,8 @@ const PRESETS = ['ANIMAL', 'OCEAN', 'SPORT', 'FOOD', 'NATURE', 'BODY'];
 const POS_OPTIONS = ['名詞', '動詞', '形容詞', '副詞'];
 
 const MODES = [
-  { label: 'ソロ', sub: 'AI と対戦', icon: '🤖', pvp: false, gradient: 'from-indigo-500 to-violet-600 shadow-indigo-500/30' },
-  { label: '対戦', sub: '2人で勝負', icon: '⚔️', pvp: true,  gradient: 'from-rose-500 to-pink-600 shadow-rose-500/30' },
+  { label: 'ソロ', sub: 'AI と対戦', img: '/ai-icon.png', pvp: false, gradient: 'from-indigo-500 to-violet-600 shadow-indigo-500/30' },
+  { label: '対戦', sub: '2人で勝負', img: '/friend-icon.png', pvp: true,  gradient: 'from-rose-500 to-pink-600 shadow-rose-500/30' },
 ] as const;
 
 export default function Lobby({ isPvP, setIsPvP, isOvertake, setIsOvertake, isSpellTrap, setIsSpellTrap, theme, setTheme, charLimit, setCharLimit, posLimit, setPosLimit, timeLimit, setTimeLimit, starting, onStart, onBack }: LobbyProps) {
@@ -34,7 +34,8 @@ export default function Lobby({ isPvP, setIsPvP, isOvertake, setIsOvertake, isSp
           ← トップへ戻る
         </button>
         <div className="flex items-center justify-center gap-2 mb-1">
-          <span className="text-3xl">⚔️</span>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/battle-icon.png" alt="" className="h-9 w-auto" />
           <h1 className="text-3xl font-black tracking-tight bg-gradient-to-r from-white via-indigo-300 to-white bg-clip-text text-transparent animate-gradient-x">対戦ゲーム</h1>
         </div>
         <p className="text-white/40 text-sm text-center">テーマを決めて英単語を出し合おう</p>
@@ -44,7 +45,7 @@ export default function Lobby({ isPvP, setIsPvP, isOvertake, setIsOvertake, isSp
       <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-5">
         <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-3">ゲームモード</p>
         <div className="grid grid-cols-2 gap-2">
-          {MODES.map(({ label, sub, icon, pvp, gradient }) => (
+          {MODES.map(({ label, sub, img, pvp, gradient }) => (
             <button
               key={label}
               onClick={() => setIsPvP(pvp)}
@@ -54,7 +55,8 @@ export default function Lobby({ isPvP, setIsPvP, isOvertake, setIsOvertake, isSp
                   : 'bg-white/5 text-white/40 hover:bg-white/10 border-white/10'
               }`}
             >
-              <div className="text-2xl mb-1">{icon}</div>
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={img} alt="" className={`h-9 w-auto mx-auto mb-1 transition-opacity ${isPvP === pvp ? '' : 'opacity-50'}`} />
               <div>{label}</div>
               <div className="text-[10px] opacity-60 mt-0.5">{sub}</div>
             </button>
@@ -66,7 +68,7 @@ export default function Lobby({ isPvP, setIsPvP, isOvertake, setIsOvertake, isSp
           <div className="mt-4 animate-fade-up">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-xs font-bold text-white/40 uppercase tracking-widest">🔍 スペルチェック</p>
+                <p className="text-xs font-bold text-white/40 uppercase tracking-widest">スペルチェック</p>
                 <p className="text-[11px] text-white/30 mt-1">AIがときどきスペルを間違える</p>
               </div>
               <button

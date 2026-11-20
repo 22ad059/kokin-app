@@ -130,7 +130,7 @@ export default function Game() {
           setScores(prev => ({ ...prev, [playerKey]: prev[playerKey] + data.score }));
           setHistory(prev => [...prev, {
             word,
-            translation: data.is_synonym ? '🔥 類義語ボーナス x2!' : data.is_antonym ? '❄️ 対義語ボーナス x2!' : `プレイヤー ${currentPlayer}`,
+            translation: data.is_synonym ? '類義語ボーナス x2!' : data.is_antonym ? '対義語ボーナス x2!' : `プレイヤー ${currentPlayer}`,
             isUser: currentPlayer === 1,
             level: data.jacet_level,
             levelEstimated: data.level_estimated,
@@ -143,7 +143,7 @@ export default function Game() {
         } else {
           setTotalScore(prev => prev + data.score);
           setHistory(prev => [...prev,
-            { word, translation: data.is_synonym ? '🔥 類義語ボーナス x2!' : data.is_antonym ? '❄️ 対義語ボーナス x2!' : (data.user_word_jp || ''), isUser: true, level: data.jacet_level, levelEstimated: data.level_estimated, score: data.score },
+            { word, translation: data.is_synonym ? '類義語ボーナス x2!' : data.is_antonym ? '対義語ボーナス x2!' : (data.user_word_jp || ''), isUser: true, level: data.jacet_level, levelEstimated: data.level_estimated, score: data.score },
             ...(data.ai_response ? [{ word: data.ai_response, translation: data.ai_response_jp, isUser: false, level: data.ai_jacet_level, levelEstimated: data.ai_level_estimated, correctWord: data.ai_misspelled ? data.ai_correct_word : undefined }] : []),
           ]);
         }
@@ -166,7 +166,7 @@ export default function Game() {
     if (!last || last.isUser) return;
     if (last.correctWord) {
       setSpellWin(true);
-      setGameOverReason(`🎉 スペルミスを見抜いた！「${last.word}」の正しいスペルは「${last.correctWord}」。あなたの勝ち！`);
+      setGameOverReason(`スペルミスを見抜いた！「${last.word}」の正しいスペルは「${last.correctWord}」。あなたの勝ち！`);
     } else {
       setGameOverReason(`「${last.word}」は正しいスペルでした…。誤指摘であなたの負け。`);
     }
@@ -176,7 +176,7 @@ export default function Game() {
   // 時間切れ: そのターンのプレイヤーの負け
   const handleTimeout = () => {
     if (isGameOver) return;
-    setGameOverReason('⏰ 時間切れ！');
+    setGameOverReason('時間切れ！');
     if (isPvP) setLosingPlayer(currentPlayer);
     setIsGameOver(true);
   };
@@ -217,7 +217,8 @@ export default function Game() {
               className="group card-shine w-full text-left bg-gradient-to-br from-indigo-500/20 to-violet-600/20 backdrop-blur-xl border border-indigo-400/20 rounded-3xl p-7 hover:border-indigo-400/50 hover:from-indigo-500/30 hover:to-violet-600/30 hover:-translate-y-1 hover:shadow-2xl hover:shadow-indigo-500/25 transition-all duration-300 active:scale-[0.98] shadow-xl shadow-indigo-950/50"
             >
               <div className="flex items-start justify-between mb-4">
-                <div className="text-5xl">⚔️</div>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/battle-icon.png" alt="" className="h-14 w-auto" />
                 <span className="text-xs font-bold text-indigo-400/60 uppercase tracking-widest border border-indigo-400/20 px-2.5 py-1 rounded-full">
                   GAME
                 </span>
@@ -228,9 +229,9 @@ export default function Game() {
                 ソロ（AI対戦）または2人対戦で遊べる。
               </p>
               <div className="flex gap-2 mt-5">
-                <span className="text-xs font-bold text-indigo-300/60 bg-indigo-500/10 border border-indigo-400/20 px-2.5 py-1 rounded-full">🤖 ソロ</span>
-                <span className="text-xs font-bold text-rose-300/60 bg-rose-500/10 border border-rose-400/20 px-2.5 py-1 rounded-full">⚔️ 2人対戦</span>
-                <span className="text-xs font-bold text-amber-300/60 bg-amber-500/10 border border-amber-400/20 px-2.5 py-1 rounded-full">✨ JACET8000</span>
+                <span className="text-xs font-bold text-indigo-300/60 bg-indigo-500/10 border border-indigo-400/20 px-2.5 py-1 rounded-full">ソロ</span>
+                <span className="text-xs font-bold text-rose-300/60 bg-rose-500/10 border border-rose-400/20 px-2.5 py-1 rounded-full">2人対戦</span>
+                <span className="text-xs font-bold text-amber-300/60 bg-amber-500/10 border border-amber-400/20 px-2.5 py-1 rounded-full">JACET8000</span>
               </div>
             </button>
 
@@ -241,7 +242,8 @@ export default function Game() {
                 className="group card-shine text-left bg-gradient-to-br from-emerald-500/20 to-teal-600/20 backdrop-blur-xl border border-emerald-400/20 rounded-3xl p-5 hover:border-emerald-400/50 hover:from-emerald-500/30 hover:to-teal-600/30 hover:-translate-y-1 hover:shadow-2xl hover:shadow-emerald-500/25 transition-all duration-300 active:scale-[0.98] shadow-xl shadow-emerald-950/50 block"
               >
                 <div className="flex items-start justify-between mb-3">
-                  <div className="text-4xl">📚</div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/study-icon.png" alt="" className="h-12 w-auto" />
                   <span className="text-[10px] font-bold text-emerald-400/60 uppercase tracking-widest border border-emerald-400/20 px-2 py-0.5 rounded-full">
                     STUDY
                   </span>
@@ -251,8 +253,8 @@ export default function Game() {
                   クイズ形式または<br />一覧で確認できる。
                 </p>
                 <div className="flex flex-wrap gap-1.5 mt-4">
-                  <span className="text-[10px] font-bold text-emerald-300/60 bg-emerald-500/10 border border-emerald-400/20 px-2 py-0.5 rounded-full">📖 一覧</span>
-                  <span className="text-[10px] font-bold text-teal-300/60 bg-teal-500/10 border border-teal-400/20 px-2 py-0.5 rounded-full">🃏 クイズ</span>
+                  <span className="text-[10px] font-bold text-emerald-300/60 bg-emerald-500/10 border border-emerald-400/20 px-2 py-0.5 rounded-full">一覧</span>
+                  <span className="text-[10px] font-bold text-teal-300/60 bg-teal-500/10 border border-teal-400/20 px-2 py-0.5 rounded-full">クイズ</span>
                 </div>
               </Link>
 
@@ -261,7 +263,8 @@ export default function Game() {
                 className="group card-shine text-left bg-gradient-to-br from-amber-500/20 to-orange-600/20 backdrop-blur-xl border border-amber-400/20 rounded-3xl p-5 hover:border-amber-400/50 hover:from-amber-500/30 hover:to-orange-600/30 hover:-translate-y-1 hover:shadow-2xl hover:shadow-amber-500/25 transition-all duration-300 active:scale-[0.98] shadow-xl shadow-amber-950/50 block"
               >
                 <div className="flex items-start justify-between mb-3">
-                  <div className="text-4xl">🎯</div>
+                  {/* eslint-disable-next-line @next/next/no-img-element */}
+                  <img src="/practice-icon.png" alt="" className="h-12 w-auto" />
                   <span className="text-[10px] font-bold text-amber-400/60 uppercase tracking-widest border border-amber-400/20 px-2 py-0.5 rounded-full">
                     PRACTICE
                   </span>
@@ -271,7 +274,7 @@ export default function Game() {
                   単語リストから<br />AIと対戦して学ぼう。
                 </p>
                 <div className="flex flex-wrap gap-1.5 mt-4">
-                  <span className="text-[10px] font-bold text-amber-300/60 bg-amber-500/10 border border-amber-400/20 px-2 py-0.5 rounded-full">🤖 AI対戦</span>
+                  <span className="text-[10px] font-bold text-amber-300/60 bg-amber-500/10 border border-amber-400/20 px-2 py-0.5 rounded-full">AI対戦</span>
                   <span className="text-[10px] font-bold text-orange-300/60 bg-orange-500/10 border border-orange-400/20 px-2 py-0.5 rounded-full">制限なし</span>
                 </div>
               </Link>

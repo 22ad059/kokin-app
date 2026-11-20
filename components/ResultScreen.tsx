@@ -16,7 +16,7 @@ interface ResultScreenProps {
 }
 
 export default function ResultScreen({
-  isPvP, losingPlayer, scores, totalScore, history, theme, reason, spellWin, onRematch, onReset,
+  isPvP, losingPlayer, scores, totalScore, history, theme, reason, onRematch, onReset,
 }: ResultScreenProps) {
   // スペルチェックモードでAIが仕込んだタイポの一覧
   const misspelled = history.filter(h => h.correctWord);
@@ -49,7 +49,6 @@ export default function ResultScreen({
           </p>
           {isPvP ? (
             <>
-              <p className="text-5xl mb-3 animate-pop-in">🏆</p>
               <p className="text-2xl font-black text-white">
                 プレイヤー {winningPlayer} の勝利！
               </p>
@@ -61,7 +60,6 @@ export default function ResultScreen({
             </>
           ) : (
             <>
-              <p className="text-5xl mb-3 animate-pop-in">{spellWin ? '🏆' : '🎯'}</p>
               <p className="text-5xl font-black text-white tabular-nums drop-shadow-[0_0_16px_rgba(129,140,248,0.5)]">
                 {totalScore}
                 <span className="text-lg font-bold text-white/30 ml-1">pt</span>
@@ -81,7 +79,7 @@ export default function ResultScreen({
           {isPvP ? (
             <div className="flex flex-col gap-3">
               <div className="flex justify-between items-center py-2 border-b border-white/10">
-                <span className="text-sm text-white/40">🔗 続いたラリー</span>
+                <span className="text-sm text-white/40">続いたラリー</span>
                 <span className="font-black text-white">{rallyCount} 語</span>
               </div>
               <div className="grid grid-cols-2 gap-3">
@@ -98,7 +96,7 @@ export default function ResultScreen({
                       }`}
                     >
                       <p className="text-xs font-bold text-white/40 mb-1">
-                        {isWinner ? '👑 ' : ''}プレイヤー {p}
+                        プレイヤー {p}
                       </p>
                       <p className="text-3xl font-black text-white">{score}</p>
                       <p className="text-xs text-white/30 mt-1">{words} 単語</p>
@@ -124,7 +122,7 @@ export default function ResultScreen({
           ) : (
             <div className="space-y-3">
               <div className="flex justify-between items-center py-2 border-b border-white/10">
-                <span className="text-sm text-white/40">🔗 続いたラリー</span>
+                <span className="text-sm text-white/40">続いたラリー</span>
                 <span className="font-black text-white">{rallyCount} 語</span>
               </div>
               <div className="flex justify-between items-center py-2 border-b border-white/10">
@@ -150,7 +148,7 @@ export default function ResultScreen({
               )}
               {misspelled.length > 0 && (
                 <div>
-                  <p className="text-xs text-white/30 mb-2">🔍 AIが仕込んだスペルミス</p>
+                  <p className="text-xs text-white/30 mb-2">AIが仕込んだスペルミス</p>
                   <div className="space-y-1.5">
                     {misspelled.map((m, i) => (
                       <div key={`${m.word}-${i}`} className="flex items-center gap-2 text-sm bg-amber-500/10 border border-amber-400/20 rounded-xl px-3 py-2">
