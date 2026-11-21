@@ -1,7 +1,8 @@
 import OpenAI from 'openai';
 import { NextResponse } from 'next/server';
 import { calculateScore } from '@/utils/scoreCalculator';
-import { lookupTranslation, lookupEntry } from '@/lib/wordLoader';
+import { lookupTranslation, lookupEntry, loadWords } from '@/lib/wordLoader';
+import { sameWord } from '@/lib/wordMatch';
 
 /**
  * スペルチェックモード用: 単語にそれらしいタイポを1つ仕込む。
@@ -47,15 +48,137 @@ function makeTypo(word: string): string | null {
   return null;
 }
 
+const LEVEL_RE = /^Level [1-8]$/;
+const toLevel = (est: unknown): string | null => {
+  const n = Number(est);
+  return Number.isInteger(n) && n >= 1 && n <= 8 ? `Level ${n}` : null;
+};
+const pick = <T,>(arr: T[]): T | undefined => arr[Math.floor(Math.random() * arr.length)];
+
+/**
+ * 練習ゲーム（ジャンル判定版）
+ * - 合否: 選んだジャンルに合う英単語なら合格（リスト外・選んだレベル外の単語でもよい）
+ * - AI の返し: プレイヤーの単語が選んだレベル内なら、選んだリストの残りから 1 語。
+ *   選んだレベル外なら、プレイヤーの単語と同じレベル・選んだジャンルの単語から 1 語。
+ */
+async function handleGenrePractice(
+  openai: OpenAI,
+  userWord: string,
+  history: string[],
+  practiceWords: string[],
+  genres: string[],
+  levels: string[],
+) {
+  const word = userWord.trim();
+  const invalid = (reason: string) => NextResponse.json({
+    is_valid: false, reason,
+    is_synonym: false, is_antonym: false, score: 0,
+    jacet_level: 'Unknown', ai_jacet_level: 'Unknown',
+    ai_response: '', user_word_jp: '', ai_response_jp: '',
+  });
+
+  if (!/^[a-zA-Z][a-zA-Z' -]*$/.test(word)) return invalid('英単語を入力してください');
+  // 辞書の見出し語を通して照合する（doctor の後の doc なども同じ語として扱う）
+  const canon = (w: string) => lookupEntry(w)?.word ?? w;
+  const sameEntry = (a: string, b: string) => sameWord(canon(a), canon(b));
+  if (history.some(h => sameEntry(h, word))) return invalid('その単語はすでに使われています');
+
+  const entry = lookupEntry(word);
+  const dictGenreMatches = !!entry && genres.includes(entry.genre);
+  const prevWord = history[history.length - 1] || '';
+
+  const prompt = `英単語ゲームの審判として判定してください。
+
+選ばれたジャンル: ${genres.map(g => `「${g}」`).join('、')}
+ユーザーの単語: "${word}"
+直前の単語: "${prevWord}"${entry ? `\n参考: 辞書（JACET8000）での分類は「${entry.genre}」、意味は「${entry.translation}」` : ''}
+
+判定項目:
+- is_english: "${word}" が実在する英単語か（つづりの誤りや英語以外は false）
+- fits_genre: "${word}" の意味が選ばれたジャンルのどれかに当てはまるか。${dictGenreMatches ? '辞書の分類が選ばれたジャンルに含まれるので true にすること。' : 'ジャンルの話題に自然に含まれる単語なら true。無関係なら false。'}
+- reason: 不合格のときの理由（日本語・短く）
+- level_estimate: 難易度を JACET8000 基準で 1〜8 の整数で推定（1=中学基礎、4=大学受験、8=最難関）
+- translation: "${word}" の日本語訳（短く）
+- is_synonym: 直前の単語の類義語か（直前が空なら false）
+- is_antonym: 直前の単語の対義語か（直前が空なら false、類義語と同時に true にしない）
+
+JSON形式のみで回答: {"is_english": boolean, "fits_genre": boolean, "reason": string, "level_estimate": number, "translation": string, "is_synonym": boolean, "is_antonym": boolean}`;
+
+  const res = await openai.chat.completions.create({
+    model: 'gpt-4o-mini',
+    messages: [{ role: 'user', content: prompt }],
+    response_format: { type: 'json_object' },
+    temperature: 0.2,
+  });
+  const ai = JSON.parse(res.choices[0].message.content || '{}');
+
+  if (!entry && ai.is_english === false) return invalid(ai.reason || '英単語として認められません');
+  if (!dictGenreMatches && ai.fits_genre !== true) {
+    return invalid(ai.reason || `選んだジャンル（${genres.join('・')}）に合っていません`);
+  }
+
+  // ユーザーの単語のレベル（辞書優先、なければ AI の推定）
+  let jacetLevel = entry?.level ?? 'Unknown';
+  let levelEstimated = false;
+  if (!entry) {
+    const est = toLevel(ai.level_estimate);
+    if (est) { jacetLevel = est; levelEstimated = true; }
+  }
+  const isSynonym = !!prevWord && ai.is_synonym === true;
+  const isAntonym = !!prevWord && !isSynonym && ai.is_antonym === true;
+
+  // AI の返し
+  // 括弧つきの見出し語（例: doctor (doc)）も、本体や別の言い方で出されたら使用済みとみなす
+  const usedAfter = [...history, word];
+  const isUsed = (w: string) => usedAfter.some(h => sameEntry(h, w));
+  let aiResponse = '';
+  if (levels.includes(jacetLevel)) {
+    aiResponse = pick(practiceWords.filter(w => !isUsed(w))) ?? '';
+  } else if (LEVEL_RE.test(jacetLevel)) {
+    const pool = loadWords()
+      .filter(w => w.level === jacetLevel && genres.includes(w.genre) && !isUsed(w.word))
+      .map(w => w.word);
+    aiResponse = pick(pool) ?? '';
+  }
+  // 同じレベルの単語が残っていないなど、返せないときは選んだリストの残りから返す
+  if (!aiResponse) aiResponse = pick(practiceWords.filter(w => !isUsed(w))) ?? '';
+
+  const aiEntry = aiResponse ? lookupEntry(aiResponse) : undefined;
+  return NextResponse.json({
+    is_valid: true, reason: '',
+    is_synonym: isSynonym, is_antonym: isAntonym,
+    jacet_level: jacetLevel, level_estimated: levelEstimated,
+    score: calculateScore(jacetLevel, isSynonym, isAntonym),
+    user_word_jp: entry?.translation || lookupTranslation(word) || String(ai.translation ?? ''),
+    ai_response: aiResponse,
+    ai_jacet_level: aiEntry?.level ?? 'Unknown',
+    ai_response_jp: aiResponse ? lookupTranslation(aiResponse) : '',
+  });
+}
+
 export async function POST(req: Request) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const { theme, themeDefinition, userWord, history, mode, charLimit, posLimit, spellTrap, practiceWords } = await req.json();
+  const { theme, themeDefinition, userWord, history, mode, charLimit, posLimit, spellTrap, practiceWords, practiceGenres, practiceLevels } = await req.json();
 
   if (typeof userWord !== 'string' || !userWord.trim() || !Array.isArray(history)) {
     return NextResponse.json({ error: '不正なリクエストです' }, { status: 400 });
   }
 
-  // ── 練習モード ──
+  // ── 練習ゲーム（ジャンル判定版） ──
+  if (Array.isArray(practiceWords) && Array.isArray(practiceGenres) && practiceGenres.length > 0) {
+    try {
+      return await handleGenrePractice(
+        openai, userWord, history as string[],
+        (practiceWords as unknown[]).map(String), (practiceGenres as unknown[]).map(String),
+        Array.isArray(practiceLevels) ? (practiceLevels as unknown[]).map(String) : [],
+      );
+    } catch (error) {
+      console.error('OpenAI API Error (genre practice):', error);
+      return NextResponse.json({ error: 'AIとの通信に失敗しました' }, { status: 500 });
+    }
+  }
+
+  // ── 練習モード（単語学習から選んだリストだけで遊ぶ） ──
   if (practiceWords && Array.isArray(practiceWords) && practiceWords.length > 0) {
     const usedLower = (history as string[]).map((h: string) => h.toLowerCase());
     const lower = userWord.toLowerCase();
@@ -194,10 +317,6 @@ JSON形式のみで回答: {"is_synonym": boolean, "is_antonym": boolean, "ai_re
     }
 
     // JACET8000 からレベルを取得してスコア計算（リスト外の単語はAIの推定レベルで代用）
-    const toLevel = (est: unknown): string | null => {
-      const n = Number(est);
-      return Number.isInteger(n) && n >= 1 && n <= 8 ? `Level ${n}` : null;
-    };
 
     const userEntry = lookupEntry(userWord);
     let jacetLevel = userEntry?.level ?? 'Unknown';

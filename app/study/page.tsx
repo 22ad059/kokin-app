@@ -2,6 +2,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { LEVEL_COLORS } from '@/lib/constants';
+import WordCardGrid from '@/components/study/WordCardGrid';
 import type { WordEntry, PracticeMessage } from '@/types/study';
 import PageShell from '@/components/study/PageShell';
 import LevelSelector from '@/components/study/LevelSelector';
@@ -312,48 +313,22 @@ export default function StudyPage() {
             />
           </div>
 
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-2xl overflow-hidden">
-            {filtered.length === 0 ? (
-              <p className="text-center text-white/30 text-sm py-10">該当する単語がありません</p>
-            ) : (
-              <div className="divide-y divide-white/5">
-                {filtered.map((w, i) => {
-                  const isSelected = selectedWords.has(w.word);
-                  return (
-                    <div key={`${w.word}-${i}`}
-                      onClick={() => {
-                        if (!selectMode) return;
-                        setSelectedWords(prev => {
-                          const next = new Set(prev);
-                          if (next.has(w.word)) next.delete(w.word);
-                          else next.add(w.word);
-                          return next;
-                        });
-                      }}
-                      className={`flex items-center gap-3 px-4 py-3 transition-colors ${selectMode ? 'cursor-pointer' : ''} ${isSelected && selectMode ? 'bg-violet-500/10' : ''}`}
-                    >
-                      {selectMode && (
-                        <div className={`w-4 h-4 rounded shrink-0 border-2 flex items-center justify-center transition-all ${isSelected ? 'bg-violet-500 border-violet-400' : 'border-white/20'}`}>
-                          {isSelected && <span className="text-[10px] text-white font-black">✓</span>}
-                        </div>
-                      )}
-                      <span className="text-xs text-white/20 w-8 shrink-0 text-right tabular-nums">{w.rank}</span>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-black text-white">{w.word}</p>
-                        <p className="text-sm text-white/50">{w.translation}</p>
-                      </div>
-                      <div className="flex flex-col items-end gap-1 shrink-0">
-                        <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${LEVEL_COLORS[w.level] ?? 'bg-white/10 text-white/40 border-white/10'}`}>
-                          {w.level.replace('Level ', 'Lv.')}
-                        </span>
-                        <span className="text-[10px] text-white/30">{w.pos}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            )}
-          </div>
+          {filtered.length === 0 ? (
+            <p className="text-center text-white/30 text-sm py-10 bg-white/5 border border-white/10 rounded-2xl">該当する単語がありません</p>
+          ) : (
+            <WordCardGrid
+              words={filtered}
+              showRank
+              selectable={selectMode}
+              selected={selectedWords}
+              onToggle={word => setSelectedWords(prev => {
+                const next = new Set(prev);
+                if (next.has(word)) next.delete(word);
+                else next.add(word);
+                return next;
+              })}
+            />
+          )}
 
           <button onClick={startQuiz} disabled={loading}
             className="w-full py-4 rounded-2xl font-black text-white bg-gradient-to-r from-emerald-500 to-teal-600 shadow-xl shadow-emerald-500/20 hover:from-emerald-400 hover:to-teal-500 transition-all active:scale-95 disabled:opacity-20">
@@ -405,6 +380,10 @@ export default function StudyPage() {
     return (
       <PageShell contentKey={phase}>
         <div className="flex flex-col gap-4">
+          <button onClick={() => { setShowAnswer(false); setPhase('setup'); }}
+            className="self-start inline-flex items-center gap-1 text-white/40 hover:text-white/70 text-sm font-medium transition-colors">
+            ← 設定に戻る
+          </button>
           <div>
             <div className="flex justify-between text-xs text-white/30 mb-2">
               <span>{current + 1} / {cards.length}</span>
@@ -461,19 +440,8 @@ export default function StudyPage() {
           <div className="px-6 pt-8 pb-6 text-center bg-gradient-to-b from-emerald-500/15 to-transparent">
             <p className="text-2xl font-black text-white">{cards.length} 語を学習完了</p>
           </div>
-          <div className="px-5 pb-5 space-y-2">
-            {cards.map((card, i) => (
-              <div key={`${card.word}-${i}`} className="flex items-center gap-3 p-3 rounded-xl bg-white/5 border border-white/5">
-                <span className="text-sm font-black text-emerald-400/60 w-6 text-center">{i + 1}</span>
-                <div className="flex-1 min-w-0">
-                  <p className="font-black text-white text-sm">{card.word}</p>
-                  <p className="text-xs text-white/40 truncate">{card.translation}</p>
-                </div>
-                <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border shrink-0 ${LEVEL_COLORS[card.level] ?? 'text-white/30 border-white/10'}`}>
-                  {card.level.replace('Level ', 'Lv.')}
-                </span>
-              </div>
-            ))}
+          <div className="px-5 pb-5">
+            <WordCardGrid words={cards} />
           </div>
         </div>
 

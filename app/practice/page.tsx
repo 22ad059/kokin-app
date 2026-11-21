@@ -1,18 +1,19 @@
 'use client';
 import { useState, useEffect, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import type { WordEntry, PracticeMessage } from '@/types/study';
 import PageShell from '@/components/study/PageShell';
 import LevelSelector from '@/components/study/LevelSelector';
 import GenreSelector from '@/components/study/GenreSelector';
 import PracticeGame from '@/components/study/PracticeGame';
+import WordCardGrid from '@/components/study/WordCardGrid';
+import { sameWord } from '@/lib/wordMatch';
 
 type Phase = 'setup' | 'game';
-type AnswerMode = 'tap' | 'type';
 
 export default function PracticePage() {
   const [phase, setPhase] = useState<Phase>('setup');
-  const [answerMode, setAnswerMode] = useState<AnswerMode>('tap');
   const [selectedLevels, setSelectedLevels] = useState<string[]>(['Level 1', 'Level 2']);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [allGenres, setAllGenres] = useState<string[]>([]);
@@ -26,6 +27,8 @@ export default function PracticePage() {
   const [gameLoading, setGameLoading] = useState(false);
   const [setupError, setSetupError] = useState('');
   const [gameError, setGameError] = useState('');
+  // 和訳ヒントを見た単語（小文字）
+  const [hintedWords, setHintedWords] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     fetch('/api/words?limit=1')
@@ -38,6 +41,25 @@ export default function PracticePage() {
       })
       .catch(() => {});
   }, []);
+
+  // 選択中のレベル・ジャンルの単語（設定画面で確認用）。選択が変わったら取り直す
+  const [preview, setPreview] = useState<{ key: string; words: WordEntry[] } | null>(null);
+  const [showPreview, setShowPreview] = useState(false);
+  const hasSelection = selectedLevels.length > 0 && selectedGenres.length > 0;
+  const previewKey = `${selectedLevels.join(',')}|${selectedGenres.join(',')}`;
+  useEffect(() => {
+    if (!hasSelection) return;
+    let cancelled = false;
+    const params = new URLSearchParams({ level: selectedLevels.join(','), genre: selectedGenres.join(','), sort: 'rank' });
+    const timer = setTimeout(() => {
+      fetch(`/api/words?${params}`)
+        .then(r => r.json())
+        .then(d => { if (!cancelled) setPreview({ key: previewKey, words: d.words ?? [] }); })
+        .catch(() => { if (!cancelled) setPreview({ key: previewKey, words: [] }); });
+    }, 250);
+    return () => { cancelled = true; clearTimeout(timer); };
+  }, [hasSelection, previewKey, selectedLevels, selectedGenres]);
+  const previewWords: WordEntry[] | null = !hasSelection ? [] : preview?.key === previewKey ? preview.words : null;
 
   const canStart = selectedLevels.length > 0 && selectedGenres.length > 0 && !loading;
 
@@ -57,6 +79,7 @@ export default function PracticePage() {
       if (words.length === 0) { setSetupError('該当する単語がありません。レベルやジャンルを変えてください。'); return; }
       setWordList(words);
       setHistory([]);
+      setHintedWords(new Set());
       setScore(0);
       setGameOver(false);
       setGameOverReason('');
@@ -81,6 +104,8 @@ export default function PracticePage() {
           history: history.map(h => h.word),
           mode: 'solo',
           practiceWords: wordList.map(w => w.word),
+          practiceGenres: selectedGenres,
+          practiceLevels: selectedLevels,
         }),
       });
       const data = await res.json();
@@ -96,6 +121,7 @@ export default function PracticePage() {
           word,
           translation: data.is_synonym ? '類義語ボーナス x2!' : data.is_antonym ? '対義語ボーナス x2!' : (data.user_word_jp || ''),
           isUser: true, level: data.jacet_level, score: data.score,
+          hinted: [...hintedWords].some(h => sameWord(h, word)),
         },
       ];
       if (data.ai_response) {
@@ -103,12 +129,12 @@ export default function PracticePage() {
       }
 
       const nextHistory = [...history, ...newEntries];
-      const usedAfter = new Set(nextHistory.map(h => h.word.toLowerCase()));
+
       setHistory(nextHistory);
       setScore(prev => prev + (data.score || 0));
-      if (wordList.filter(w => !usedAfter.has(w.word.toLowerCase())).length === 0) {
+      if (wordList.every(w => nextHistory.some(h => sameWord(h.word, w.word)))) {
         setGameOver(true);
-        setGameOverReason('すべての単語を使い切りました！');
+        setGameOverReason('クリア！選んだ単語をすべて出し切りました');
       }
       setGameLoading(false);
       return true;
@@ -117,7 +143,7 @@ export default function PracticePage() {
       setGameLoading(false);
       return false;
     }
-  }, [gameLoading, gameOver, history, wordList]);
+  }, [gameLoading, gameOver, history, wordList, selectedGenres, selectedLevels, hintedWords]);
 
   // ── セットアップ ──
   if (phase === 'setup') {
@@ -139,34 +165,18 @@ export default function PracticePage() {
           <LevelSelector selectedLevels={selectedLevels} onChange={setSelectedLevels} variant="amber" />
           <GenreSelector genres={allGenres} selectedGenres={selectedGenres} onChange={setSelectedGenres} variant="amber" />
 
-          {/* 回答形式 */}
-          <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-5">
-            <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-3">回答形式</p>
-            <div className="grid grid-cols-2 gap-2">
-              {([
-                { mode: 'tap' as const, label: 'タップ', sub: '選択肢から選ぶ' },
-                { mode: 'type' as const, label: '入力', sub: '日本語訳を見て打つ' },
-              ]).map(({ mode, label, sub }) => (
-                <button
-                  key={mode}
-                  onClick={() => setAnswerMode(mode)}
-                  className={`py-3 rounded-2xl font-bold text-sm transition-all border ${
-                    answerMode === mode
-                      ? 'bg-gradient-to-br from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-500/20 border-transparent'
-                      : 'bg-white/5 text-white/40 hover:bg-white/10 border-white/10'
-                  }`}
-                >
-                  <div>{label}</div>
-                  <div className="text-[10px] opacity-60 mt-0.5 font-medium">{sub}</div>
-                </button>
-              ))}
-            </div>
-            {answerMode === 'type' && (
-              <p className="text-[11px] text-white/30 mt-2">
-                絞り込んだリストにある英単語だけが正解。リスト外の単語は不合格になる。
-              </p>
-            )}
-          </div>
+          {/* 選んだ単語を見るボタン */}
+          <button
+            onClick={() => setShowPreview(true)}
+            disabled={!previewWords || previewWords.length === 0}
+            className="w-full py-3 rounded-2xl font-bold text-sm text-amber-200 bg-white/5 border border-amber-400/30 hover:bg-amber-500/10 hover:border-amber-400/50 transition-all active:scale-95 disabled:opacity-30 disabled:cursor-not-allowed"
+          >
+            {previewWords === null ? '単語を読み込み中…' : `選んだ単語を見る（${previewWords.length} 語）`}
+          </button>
+
+          <p className="text-[11px] text-white/30 px-1">
+            選んだジャンルに合う英単語を入力して AI と出し合う。困ったら和訳のヒントを見られる（ヒントを見た単語は別に数える）。選んだレベル以外の単語でも、ジャンルに合っていれば正解。選んだレベル・ジャンルの単語をすべて出し切ったらクリア。
+          </p>
 
           {setupError && (
             <div role="alert" className="bg-rose-500/15 border border-rose-400/30 text-rose-300 text-sm font-bold rounded-2xl px-4 py-3 text-center backdrop-blur-sm">
@@ -179,6 +189,33 @@ export default function PracticePage() {
             {loading ? '準備中...' : '練習ゲームを始める'}
           </button>
         </div>
+
+        {/* ページ全体のアニメーション（transform）の影響を受けないよう body 直下に出す */}
+        {showPreview && previewWords && createPortal(
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-label="選んだ単語"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm px-4"
+            onClick={() => setShowPreview(false)}
+          >
+            <div
+              className="w-full max-w-md max-h-[80vh] flex flex-col bg-slate-900 border border-white/10 rounded-3xl p-5 shadow-2xl animate-fade-up"
+              onClick={e => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <p className="font-black text-white">選んだ単語 <span className="text-amber-300">{previewWords.length} 語</span></p>
+                <button onClick={() => setShowPreview(false)} className="text-sm font-bold text-white/50 hover:text-white px-2 py-1">
+                  閉じる
+                </button>
+              </div>
+              <div className="overflow-y-auto pr-1">
+                <WordCardGrid words={previewWords} />
+              </div>
+            </div>
+          </div>,
+          document.body,
+        )}
       </PageShell>
     );
   }
@@ -195,11 +232,16 @@ export default function PracticePage() {
         gameLoading={gameLoading}
         errorMsg={gameError}
         onPlayWord={playWord}
-        onRestart={() => { setHistory([]); setScore(0); setGameOver(false); setGameOverReason(''); setGameError(''); }}
+        onRestart={() => { setHistory([]); setHintedWords(new Set()); setScore(0); setGameOver(false); setGameOverReason(''); setGameError(''); }}
+        onRetire={() => { setGameError(''); setGameOver(true); setGameOverReason('リタイア'); }}
         onBack={() => { setGameError(''); setPhase('setup'); }}
         backLabel="← 設定に戻る"
         variant="amber"
-        inputMode={answerMode === 'type'}
+        inputMode
+        hintedWords={hintedWords}
+        onRevealHint={w => setHintedWords(prev => new Set(prev).add(w.toLowerCase()))}
+        genres={selectedGenres}
+        levels={[...selectedLevels].sort()}
       />
     </PageShell>
   );
