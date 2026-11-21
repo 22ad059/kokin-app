@@ -77,6 +77,11 @@ export default function Game() {
 
   // ゲーム開始: お題の定義を生成してから対戦画面へ（失敗しても定義なしで開始する）
   const startGame = async () => {
+    // オンライン: すぐに部屋を作る（ルールは部屋の中で決める）
+    if (isPvP && isOnline) {
+      setOnlineSession({ mode: 'create' });
+      return;
+    }
     if (startingGame || !theme.trim()) return;
     setStartingGame(true);
     let definition = '';
@@ -93,14 +98,6 @@ export default function Game() {
     }
     setThemeDefinition(definition);
     setStartingGame(false);
-    if (isPvP && isOnline) {
-      // オンライン: このルールで部屋を作る
-      setOnlineSession({
-        mode: 'create',
-        settings: { theme: theme.trim(), themeDefinition: definition, charLimit, posLimit, timeLimit, isOvertake },
-      });
-      return;
-    }
     setIsThemeSet(true);
   };
 

@@ -62,7 +62,16 @@ interface GameBoardProps {
   onReset: () => void;
   onEndGame: () => void;
   /** オンライン対戦: 自分のプレイヤー番号。指定すると相手の番は入力できず、表示が「あなた/相手」になる */
-  myPlayer?: 1 | 2;
+  myPlayer?: number;
+  /** オンライン: 自分が入力できるか（脱落した人は観戦のみ）。省略時は「自分の番か」 */
+  canPlay?: boolean;
+  /** 状態欄の文言（省略時は自動） */
+  statusText?: string;
+  modeText?: string;
+  /** スコアモードで交代に必要な点（オンライン・3人以上用） */
+  passPoints?: number;
+  /** 3人以上のスコア欄（指定すると P1/P2 の表示の代わりに使う） */
+  scoreboard?: { no: number; label: string; score: number; current: boolean; out: boolean }[];
   /** オンライン対戦: 接続状態などのお知らせ */
   notice?: string;
   /** 戻るボタンの文言 */
@@ -74,9 +83,10 @@ export default function GameBoard({
   theme, themeDefinition, charLimit, posLimit, timeLimit, onTimeout,
   isSpellTrap, onChallenge, history, input, setInput, loading, errorMsg,
   onPlayTurn, onReset, onEndGame, myPlayer, notice, backLabel = '← 戻る',
+  canPlay, statusText, modeText, passPoints, scoreboard,
 }: GameBoardProps) {
   const isOnline = myPlayer != null;
-  const isMyTurn = !isOnline || currentPlayer === myPlayer;
+  const isMyTurn = canPlay ?? (!isOnline || currentPlayer === myPlayer);
   const playerLabel = (p: 1 | 2) => (isOnline ? (p === myPlayer ? 'あなた' : '相手') : `P${p}`);
   // スペルチェック: 直前のメッセージがAIの単語なら指摘できる
   const lastMsg = history[history.length - 1];
@@ -87,7 +97,7 @@ export default function GameBoard({
   // 逆転モード: 交代に必要な残りポイント（相手のスコアを「超える」必要がある）
   const myScore = currentPlayer === 1 ? scores.p1 : scores.p2;
   const opponentScore = currentPlayer === 1 ? scores.p2 : scores.p1;
-  const pointsToPass = Math.max(1, opponentScore - myScore + 1);
+  const pointsToPass = passPoints ?? Math.max(1, opponentScore - myScore + 1);
   const chatRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -149,12 +159,12 @@ export default function GameBoard({
         <div className="flex items-center justify-between">
           <div>
             <p className="text-xs font-semibold text-white/60">
-              {isPvP ? (isOvertake ? 'スコアモード' : '2人対戦モード') : isSpellTrap ? 'スペルチェックモード' : 'ソロモード'}
+              {modeText ?? (isPvP ? (isOvertake ? 'スコアモード' : '2人対戦モード') : isSpellTrap ? 'スペルチェックモード' : 'ソロモード')}
             </p>
             <p className="text-lg font-black text-white mt-0.5">
-              {isOnline
+              {statusText ?? (isOnline
                 ? (isMyTurn ? 'あなたの番！' : '相手の番…')
-                : isPvP ? `プレイヤー ${currentPlayer} の番！` : 'AI と対戦中'}
+                : isPvP ? `プレイヤー ${currentPlayer} の番！` : 'AI と対戦中')}
             </p>
             {isPvP && isOvertake && isMyTurn && (
               <p className="text-[11px] font-bold text-white/70 mt-1">
@@ -163,7 +173,16 @@ export default function GameBoard({
             )}
           </div>
           <div className="text-right">
-            {isPvP ? (
+            {scoreboard ? (
+              <div className="flex flex-wrap justify-end gap-x-3 gap-y-1 max-w-[11rem]">
+                {scoreboard.map(p => (
+                  <div key={p.no} className={`text-center ${p.out ? 'opacity-30 line-through' : p.current ? 'opacity-100' : 'opacity-50'}`}>
+                    <p className="text-[10px] font-bold text-white/70 whitespace-nowrap">{p.label}</p>
+                    <p className={`${scoreboard.length > 3 ? 'text-lg' : 'text-2xl'} font-black text-white tabular-nums`}>{p.score}</p>
+                  </div>
+                ))}
+              </div>
+            ) : isPvP ? (
               <div className="flex gap-4">
                 {([1, 2] as const).map((p, i) => (
                   <div key={p} className="text-center">
