@@ -13,16 +13,25 @@ interface ResultScreenProps {
   spellWin?: boolean;
   onRematch: () => void;
   onReset: () => void;
+  /** オンライン対戦: 自分のプレイヤー番号（表示を「あなた/相手」にする） */
+  myPlayer?: 1 | 2;
+  rematchLabel?: string;
+  resetLabel?: string;
 }
 
 export default function ResultScreen({
   isPvP, losingPlayer, scores, totalScore, history, theme, reason, onRematch, onReset,
+  myPlayer, rematchLabel = 'もう一回', resetLabel = 'ロビーへ',
 }: ResultScreenProps) {
+  const isOnline = myPlayer != null;
   // スペルチェックモードでAIが仕込んだタイポの一覧
   const misspelled = history.filter(h => h.correctWord);
   const winningPlayer = losingPlayer === 1 ? 2 : 1;
-  const p1Words = history.filter(h => h.isUser).length;
-  const p2Words = history.filter(h => !h.isUser).length;
+  // オンラインでは isUser が「自分の単語」を表すので、プレイヤー番号に読み替える
+  const mineCount = history.filter(h => h.isUser).length;
+  const theirsCount = history.length - mineCount;
+  const p1Words = isOnline && myPlayer === 2 ? theirsCount : mineCount;
+  const p2Words = isOnline && myPlayer === 2 ? mineCount : theirsCount;
   const soloWords = history.filter(h => h.isUser).length;
   // 両者合わせて何語続いたか（=ラリー数）
   const rallyCount = history.length;
@@ -50,7 +59,9 @@ export default function ResultScreen({
           {isPvP ? (
             <>
               <p className="text-2xl font-black text-white">
-                プレイヤー {winningPlayer} の勝利！
+                {isOnline
+                  ? (winningPlayer === myPlayer ? 'あなたの勝ち！' : 'あなたの負け…')
+                  : `プレイヤー ${winningPlayer} の勝利！`}
               </p>
               {reason && (
                 <p className="text-sm text-white/40 mt-3 bg-white/5 border border-white/10 rounded-xl px-4 py-2">
@@ -96,7 +107,7 @@ export default function ResultScreen({
                       }`}
                     >
                       <p className="text-xs font-bold text-white/40 mb-1">
-                        プレイヤー {p}
+                        {isOnline ? (p === myPlayer ? 'あなた' : '相手') : `プレイヤー ${p}`}
                       </p>
                       <p className="text-3xl font-black text-white">{score}</p>
                       <p className="text-xs text-white/30 mt-1">{words} 単語</p>
@@ -172,13 +183,13 @@ export default function ResultScreen({
           onClick={onRematch}
           className="py-4 rounded-2xl font-black text-white bg-gradient-to-r from-indigo-500 to-violet-600 shadow-lg shadow-indigo-500/30 hover:from-indigo-400 hover:to-violet-500 transition-all active:scale-95"
         >
-          もう一回
+          {rematchLabel}
         </button>
         <button
           onClick={onReset}
           className="py-4 rounded-2xl font-black text-white/60 bg-white/5 border border-white/10 hover:bg-white/10 transition-all active:scale-95 backdrop-blur-sm"
         >
-          ロビーへ
+          {resetLabel}
         </button>
       </div>
     </div>

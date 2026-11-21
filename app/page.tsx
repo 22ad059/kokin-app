@@ -5,6 +5,7 @@ import { ChatMessage } from '@/types/game';
 import Lobby from '@/components/Lobby';
 import GameBoard from '@/components/GameBoard';
 import ResultScreen from '@/components/ResultScreen';
+import OnlineRoom, { type OnlineSession } from '@/components/OnlineRoom';
 
 export default function Game() {
   const [showTop, setShowTop] = useState(true);
@@ -33,6 +34,9 @@ export default function Game() {
   // 1手ごとの制限時間（秒）。null は無制限
   const [timeLimit, setTimeLimit] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
+  // オンライン対戦（別々の端末で2人対戦）
+  const [isOnline, setIsOnline] = useState(false);
+  const [onlineSession, setOnlineSession] = useState<OnlineSession | null>(null);
 
   const resetGame = () => {
     setIsThemeSet(false);
@@ -75,6 +79,7 @@ export default function Game() {
   const startGame = async () => {
     if (startingGame || !theme.trim()) return;
     setStartingGame(true);
+    let definition = '';
     try {
       const res = await fetch('/api/theme', {
         method: 'POST',
@@ -82,11 +87,20 @@ export default function Game() {
         body: JSON.stringify({ theme }),
       });
       const data = await res.json();
-      setThemeDefinition(typeof data.definition === 'string' ? data.definition : '');
+      definition = typeof data.definition === 'string' ? data.definition : '';
     } catch {
-      setThemeDefinition('');
+      definition = '';
     }
+    setThemeDefinition(definition);
     setStartingGame(false);
+    if (isPvP && isOnline) {
+      // オンライン: このルールで部屋を作る
+      setOnlineSession({
+        mode: 'create',
+        settings: { theme: theme.trim(), themeDefinition: definition, charLimit, posLimit, timeLimit, isOvertake },
+      });
+      return;
+    }
     setIsThemeSet(true);
   };
 
@@ -181,7 +195,7 @@ export default function Game() {
     setIsGameOver(true);
   };
 
-  const screen = showTop ? 'top' : !isThemeSet ? 'lobby' : isGameOver ? 'result' : 'game';
+  const screen = showTop ? 'top' : onlineSession ? 'online' : !isThemeSet ? 'lobby' : isGameOver ? 'result' : 'game';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex flex-col items-center px-4 py-10">
@@ -302,7 +316,14 @@ export default function Game() {
             starting={startingGame}
             onStart={startGame}
             onBack={goToTop}
+            isOnline={isOnline}
+            setIsOnline={setIsOnline}
+            onJoin={code => setOnlineSession({ mode: 'join', code })}
           />
+        )}
+
+        {screen === 'online' && onlineSession && (
+          <OnlineRoom session={onlineSession} onExit={() => setOnlineSession(null)} />
         )}
 
         {screen === 'game' && (

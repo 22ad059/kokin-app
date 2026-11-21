@@ -61,18 +61,28 @@ interface GameBoardProps {
   onPlayTurn: () => void;
   onReset: () => void;
   onEndGame: () => void;
+  /** オンライン対戦: 自分のプレイヤー番号。指定すると相手の番は入力できず、表示が「あなた/相手」になる */
+  myPlayer?: 1 | 2;
+  /** オンライン対戦: 接続状態などのお知らせ */
+  notice?: string;
+  /** 戻るボタンの文言 */
+  backLabel?: string;
 }
 
 export default function GameBoard({
   isPvP, isOvertake, currentPlayer, scores, totalScore,
   theme, themeDefinition, charLimit, posLimit, timeLimit, onTimeout,
   isSpellTrap, onChallenge, history, input, setInput, loading, errorMsg,
-  onPlayTurn, onReset, onEndGame,
+  onPlayTurn, onReset, onEndGame, myPlayer, notice, backLabel = '← 戻る',
 }: GameBoardProps) {
+  const isOnline = myPlayer != null;
+  const isMyTurn = !isOnline || currentPlayer === myPlayer;
+  const playerLabel = (p: 1 | 2) => (isOnline ? (p === myPlayer ? 'あなた' : '相手') : `P${p}`);
   // スペルチェック: 直前のメッセージがAIの単語なら指摘できる
   const lastMsg = history[history.length - 1];
   const canChallenge = isSpellTrap && !!lastMsg && !lastMsg.isUser && !loading;
-  const isP1Turn = !isPvP || currentPlayer === 1;
+  // オンラインでは「自分の番」を P1 側の色で表示する
+  const isP1Turn = !isPvP || (isOnline ? isMyTurn : currentPlayer === 1);
 
   // 逆転モード: 交代に必要な残りポイント（相手のスコアを「超える」必要がある）
   const myScore = currentPlayer === 1 ? scores.p1 : scores.p2;
@@ -107,7 +117,7 @@ export default function GameBoard({
           onClick={onReset}
           className="inline-flex items-center gap-1 text-white/40 hover:text-white/70 text-sm font-medium transition-colors"
         >
-          ← 戻る
+          {backLabel}
         </button>
         <div className="flex items-center gap-2 bg-white/10 border border-white/10 backdrop-blur-sm px-3 py-1.5 rounded-full max-w-[55%]">
           <span className="text-white/40 text-xs font-semibold shrink-0">テーマ</span>
@@ -142,9 +152,11 @@ export default function GameBoard({
               {isPvP ? (isOvertake ? 'スコアモード' : '2人対戦モード') : isSpellTrap ? 'スペルチェックモード' : 'ソロモード'}
             </p>
             <p className="text-lg font-black text-white mt-0.5">
-              {isPvP ? `プレイヤー ${currentPlayer} の番！` : 'AI と対戦中'}
+              {isOnline
+                ? (isMyTurn ? 'あなたの番！' : '相手の番…')
+                : isPvP ? `プレイヤー ${currentPlayer} の番！` : 'AI と対戦中'}
             </p>
-            {isPvP && isOvertake && (
+            {isPvP && isOvertake && isMyTurn && (
               <p className="text-[11px] font-bold text-white/70 mt-1">
                 あと {pointsToPass} pt で交代
               </p>
@@ -153,9 +165,9 @@ export default function GameBoard({
           <div className="text-right">
             {isPvP ? (
               <div className="flex gap-4">
-                {(['P1', 'P2'] as const).map((p, i) => (
+                {([1, 2] as const).map((p, i) => (
                   <div key={p} className="text-center">
-                    <p className="text-[10px] font-bold text-white/50">{p}</p>
+                    <p className="text-[10px] font-bold text-white/50">{playerLabel(p)}</p>
                     <p className={`text-2xl font-black text-white ${(i === 0 ? currentPlayer === 1 : currentPlayer === 2) ? 'opacity-100' : 'opacity-40'}`}>
                       {i === 0 ? scores.p1 : scores.p2}
                     </p>
@@ -215,6 +227,13 @@ export default function GameBoard({
         </button>
       )}
 
+      {/* オンライン対戦のお知らせ（相手の接続が切れた など） */}
+      {notice && (
+        <div role="status" className="bg-amber-500/10 border border-amber-400/30 text-amber-200 text-sm font-bold rounded-2xl px-4 py-3 text-center backdrop-blur-sm">
+          {notice}
+        </div>
+      )}
+
       {/* エラー表示 */}
       {errorMsg && (
         <div role="alert" className="bg-rose-500/15 border border-rose-400/30 text-rose-300 text-sm font-bold rounded-2xl px-4 py-3 text-center backdrop-blur-sm">
@@ -252,9 +271,12 @@ export default function GameBoard({
             value={input}
             maxLength={charLimit ?? undefined}
             onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && onPlayTurn()}
+            onKeyDown={(e) => e.key === 'Enter' && !e.nativeEvent.isComposing && isMyTurn && onPlayTurn()}
+            disabled={!isMyTurn}
             placeholder={
-              charLimit !== null || posLimit
+              !isMyTurn
+                ? '相手が考えています…'
+                : charLimit !== null || posLimit
                 ? `${[posLimit, charLimit !== null ? `${charLimit}文字` : ''].filter(Boolean).join('・')}の英単語...`
                 : '英単語を入力...'
             }
@@ -269,7 +291,7 @@ export default function GameBoard({
           )}
           <button
             onClick={onPlayTurn}
-            disabled={loading || !input.trim() || (charLimit !== null && input.trim().length !== charLimit)}
+            disabled={!isMyTurn || loading || !input.trim() || (charLimit !== null && input.trim().length !== charLimit)}
             className={`px-6 py-2.5 rounded-xl font-black text-white bg-gradient-to-r ${sendBtnGradient} shadow-lg transition-all active:scale-95 disabled:opacity-30`}
           >
             {loading ? (

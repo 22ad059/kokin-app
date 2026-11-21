@@ -1,3 +1,4 @@
+import { useState } from 'react';
 interface LobbyProps {
   isPvP: boolean;
   setIsPvP: (v: boolean) => void;
@@ -16,6 +17,11 @@ interface LobbyProps {
   starting: boolean;
   onStart: () => void;
   onBack: () => void;
+  /** 2人対戦を別々の端末でする（オンライン） */
+  isOnline: boolean;
+  setIsOnline: (v: boolean) => void;
+  /** オンライン: 部屋コードで参加する */
+  onJoin: (code: string) => void;
 }
 
 const PRESETS = ['ANIMAL', 'OCEAN', 'SPORT', 'FOOD', 'NATURE', 'BODY'];
@@ -26,7 +32,10 @@ const MODES = [
   { label: '対戦', sub: '2人で勝負', img: '/friend-icon.png', pvp: true,  gradient: 'from-rose-500 to-pink-600 shadow-rose-500/30' },
 ] as const;
 
-export default function Lobby({ isPvP, setIsPvP, isOvertake, setIsOvertake, isSpellTrap, setIsSpellTrap, theme, setTheme, charLimit, setCharLimit, posLimit, setPosLimit, timeLimit, setTimeLimit, starting, onStart, onBack }: LobbyProps) {
+export default function Lobby({ isPvP, setIsPvP, isOvertake, setIsOvertake, isSpellTrap, setIsSpellTrap, theme, setTheme, charLimit, setCharLimit, posLimit, setPosLimit, timeLimit, setTimeLimit, starting, onStart, onBack, isOnline, setIsOnline, onJoin }: LobbyProps) {
+  const [joinCode, setJoinCode] = useState('');
+  const online = isPvP && isOnline;
+  const canJoin = /^\d{4}$/.test(joinCode);
   return (
     <div className="w-full max-w-sm mx-auto flex flex-col gap-3">
       <header className="mb-5">
@@ -86,6 +95,32 @@ export default function Lobby({ isPvP, setIsPvP, isOvertake, setIsOvertake, isSp
           </div>
         )}
 
+        {/* 対戦の場所（対戦時のみ） */}
+        {isPvP && (
+          <div className="mt-4 animate-fade-up">
+            <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-2">対戦のしかた</p>
+            <div className="grid grid-cols-2 gap-2">
+              {([
+                { v: false, label: 'この端末で', sub: '1台を交代で使う' },
+                { v: true, label: 'オンライン', sub: '別々の端末で対戦' },
+              ]).map(({ v, label, sub }) => (
+                <button
+                  key={label}
+                  onClick={() => setIsOnline(v)}
+                  className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border ${
+                    isOnline === v
+                      ? 'bg-rose-500/25 border-rose-400/50 text-rose-200'
+                      : 'bg-white/5 text-white/40 hover:bg-white/10 border-white/10'
+                  }`}
+                >
+                  <div>{label}</div>
+                  <div className="text-[10px] opacity-60 mt-0.5 font-medium">{sub}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
+
         {/* ターン交代ルール（対戦時のみ） */}
         {isPvP && (
           <div className="mt-4 animate-fade-up">
@@ -122,6 +157,33 @@ export default function Lobby({ isPvP, setIsPvP, isOvertake, setIsOvertake, isSp
           </div>
         )}
       </div>
+
+      {/* オンライン: 部屋コードで参加 */}
+      {online && (
+        <div className="bg-white/5 backdrop-blur-xl border border-rose-400/20 rounded-3xl p-5 animate-fade-up">
+          <p className="text-xs font-bold text-white/40 uppercase tracking-widest mb-1">部屋に入る</p>
+          <p className="text-[11px] text-white/30 mb-3">相手から聞いた4桁の部屋コードを入れる。ルールは部屋を作った人の設定になる。</p>
+          <div className="flex items-center gap-2">
+            <input
+              inputMode="numeric"
+              maxLength={4}
+              className="flex-1 min-w-0 bg-white/10 border border-white/10 text-white font-black text-2xl tracking-[0.4em] text-center p-2.5 rounded-2xl outline-none focus:border-rose-400 transition-all placeholder:text-white/20 placeholder:tracking-normal placeholder:text-base"
+              placeholder="部屋コード"
+              value={joinCode}
+              onChange={e => setJoinCode(e.target.value.replace(/\D/g, '').slice(0, 4))}
+              onKeyDown={e => e.key === 'Enter' && canJoin && onJoin(joinCode)}
+            />
+            <button
+              onClick={() => onJoin(joinCode)}
+              disabled={!canJoin}
+              className="px-5 py-3 rounded-2xl font-black text-white bg-gradient-to-r from-rose-500 to-pink-600 transition-all active:scale-95 disabled:opacity-30 shrink-0"
+            >
+              入る
+            </button>
+          </div>
+          <p className="text-[11px] text-white/30 mt-4 text-center">— または、下の設定で部屋を作る —</p>
+        </div>
+      )}
 
       {/* テーマ入力 */}
       <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-5">
@@ -235,7 +297,7 @@ export default function Lobby({ isPvP, setIsPvP, isOvertake, setIsOvertake, isSp
             : 'bg-gradient-to-r from-indigo-500 to-violet-600 hover:from-indigo-400 hover:to-violet-500 [--glow:rgba(99,102,241,0.4)]'
         }`}
       >
-        {starting ? 'お題を準備中...' : 'ゲームスタート！'}
+        {starting ? 'お題を準備中...' : online ? '部屋を作る' : 'ゲームスタート！'}
       </button>
     </div>
   );
