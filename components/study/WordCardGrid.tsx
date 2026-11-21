@@ -28,8 +28,17 @@ export default function WordCardGrid({ words, showRank, selectable, selected, on
               {showRank && <span className="text-[10px] text-white/25 tabular-nums">#{w.rank}</span>}
             </p>
             {/* 英単語（大きく）の下に和訳（小さく）。どのカードも同じ形になる */}
-            <p className="font-black text-lg text-white leading-tight break-words">{w.word}</p>
-            <p className="text-sm font-bold text-white/70 leading-snug">{w.translation || '—'}</p>
+            {/* 「mom (mommy, mum, ...)」のような括弧内の別の言い方は小さく分けて表示する */}
+            {(() => {
+              const m = w.word.match(/^(.*?)\s*\((.*)\)\s*$/);
+              return (
+                <p className="leading-tight break-words">
+                  <span className="font-black text-xl text-white tracking-wide">{m ? m[1] : w.word}</span>
+                  {m && <span className="block text-[11px] font-bold text-white/45 mt-0.5">({m[2]})</span>}
+                </p>
+              );
+            })()}
+            <p className="text-[13px] font-medium text-white/60 leading-snug">{w.translation || '—'}</p>
             {isSelected && (
               <span className="absolute top-1.5 right-1.5 w-4 h-4 rounded bg-violet-500 text-[10px] text-white font-black flex items-center justify-center">✓</span>
             )}
