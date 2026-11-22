@@ -6,6 +6,7 @@ import Lobby from '@/components/Lobby';
 import GameBoard from '@/components/GameBoard';
 import ResultScreen from '@/components/ResultScreen';
 import OnlineRoom, { type OnlineSession } from '@/components/OnlineRoom';
+import OnlineEntry from '@/components/online/OnlineEntry';
 
 export default function Game() {
   const [showTop, setShowTop] = useState(true);
@@ -34,8 +35,8 @@ export default function Game() {
   // 1手ごとの制限時間（秒）。null は無制限
   const [timeLimit, setTimeLimit] = useState<number | null>(null);
   const [errorMsg, setErrorMsg] = useState('');
-  // オンライン対戦（別々の端末で2人対戦）
-  const [isOnline, setIsOnline] = useState(false);
+  // オンライン（別々の端末で遊ぶ）: 入口画面を開いているか・接続中の部屋
+  const [showOnline, setShowOnline] = useState(false);
   const [onlineSession, setOnlineSession] = useState<OnlineSession | null>(null);
 
   const resetGame = () => {
@@ -59,6 +60,8 @@ export default function Game() {
 
   const goToTop = () => {
     resetGame();
+    setShowOnline(false);
+    setOnlineSession(null);
     setShowTop(true);
   };
 
@@ -77,11 +80,6 @@ export default function Game() {
 
   // ゲーム開始: お題の定義を生成してから対戦画面へ（失敗しても定義なしで開始する）
   const startGame = async () => {
-    // オンライン: すぐに部屋を作る（ルールは部屋の中で決める）
-    if (isPvP && isOnline) {
-      setOnlineSession({ mode: 'create' });
-      return;
-    }
     if (startingGame || !theme.trim()) return;
     setStartingGame(true);
     let definition = '';
@@ -192,7 +190,10 @@ export default function Game() {
     setIsGameOver(true);
   };
 
-  const screen = showTop ? 'top' : onlineSession ? 'online' : !isThemeSet ? 'lobby' : isGameOver ? 'result' : 'game';
+  const screen = showTop ? 'top'
+    : onlineSession ? 'online'
+      : showOnline ? 'onlineEntry'
+        : !isThemeSet ? 'lobby' : isGameOver ? 'result' : 'game';
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-900 via-indigo-950 to-slate-900 flex flex-col items-center px-4 py-10">
@@ -243,6 +244,24 @@ export default function Game() {
                 <span className="text-xs font-bold text-indigo-300/60 bg-indigo-500/10 border border-indigo-400/20 px-2.5 py-1 rounded-full">ソロ</span>
                 <span className="text-xs font-bold text-rose-300/60 bg-rose-500/10 border border-rose-400/20 px-2.5 py-1 rounded-full">2人対戦</span>
                 <span className="text-xs font-bold text-amber-300/60 bg-amber-500/10 border border-amber-400/20 px-2.5 py-1 rounded-full">JACET8000</span>
+              </div>
+            </button>
+
+            {/* オンラインカード */}
+            <button
+              onClick={() => { setShowTop(false); setShowOnline(true); }}
+              className="group card-shine w-full text-left bg-gradient-to-br from-rose-500/20 to-pink-600/20 backdrop-blur-xl border border-rose-400/20 rounded-3xl p-5 hover:border-rose-400/50 hover:from-rose-500/30 hover:to-pink-600/30 hover:-translate-y-1 hover:shadow-2xl hover:shadow-rose-500/25 transition-all duration-300 active:scale-[0.98] shadow-xl shadow-rose-950/50 flex items-center gap-4"
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/friend-icon.png" alt="" className="h-14 w-auto shrink-0" />
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center gap-2 mb-1">
+                  <h2 className="text-lg font-black text-white">オンライン</h2>
+                  <span className="text-[10px] font-bold text-rose-400/70 uppercase tracking-widest border border-rose-400/20 px-2 py-0.5 rounded-full">ONLINE</span>
+                </div>
+                <p className="text-white/40 text-xs leading-relaxed">
+                  部屋コードで別々の端末から2〜6人で。<br />対戦ゲームも練習ゲームも遊べる。
+                </p>
               </div>
             </button>
 
@@ -313,9 +332,14 @@ export default function Game() {
             starting={startingGame}
             onStart={startGame}
             onBack={goToTop}
-            isOnline={isOnline}
-            setIsOnline={setIsOnline}
+          />
+        )}
+
+        {screen === 'onlineEntry' && (
+          <OnlineEntry
+            onCreate={() => setOnlineSession({ mode: 'create' })}
             onJoin={code => setOnlineSession({ mode: 'join', code })}
+            onBack={goToTop}
           />
         )}
 
