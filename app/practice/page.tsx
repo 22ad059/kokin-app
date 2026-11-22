@@ -116,12 +116,15 @@ export default function PracticePage() {
       }
       if (!data.is_valid) { setGameError(data.reason || 'その単語は使えません。'); setGameLoading(false); return false; }
 
+      // つづりを1文字まちがえたときは、直した単語で記録する
+      const played: string = data.corrected_word || word;
       const newEntries: PracticeMessage[] = [
         {
-          word,
+          word: played,
+          typedAs: data.corrected_word ? data.typed_word : undefined,
           translation: data.is_synonym ? '類義語ボーナス x2!' : data.is_antonym ? '対義語ボーナス x2!' : (data.user_word_jp || ''),
           isUser: true, level: data.jacet_level, score: data.score,
-          hinted: [...hintedWords].some(h => sameWord(h, word)),
+          hinted: [...hintedWords].some(h => sameWord(h, played)),
         },
       ];
       if (data.ai_response) {

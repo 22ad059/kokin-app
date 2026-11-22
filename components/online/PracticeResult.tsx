@@ -21,6 +21,7 @@ export default function PracticeResult({ room, myPlayer, onRematch, onToLobby, o
   const remaining = room.wordList.filter(w => !room.history.some(h => sameWord(h.word, w.word)));
   const used = room.wordList.length - remaining.length;
   const hintUsed = room.history.filter(h => h.hinted).length;
+  const spellFixed = room.history.filter(h => h.typedAs).length;
   const here = room.players.filter(p => p.connected).length;
 
   const title = coop
@@ -39,6 +40,9 @@ export default function PracticeResult({ room, myPlayer, onRematch, onToLobby, o
           <p className="text-sm text-white/70 mt-3">
             {used} / {room.wordList.length} 語を出しました{coop && hintUsed > 0 ? `（うちヒント ${hintUsed} 語）` : ''}
           </p>
+          <p className="text-xs text-white/50 mt-1">
+            つづり修正 {spellFixed} 回
+          </p>
         </div>
 
         {/* 一人ひとりの成績 */}
@@ -49,7 +53,7 @@ export default function PracticeResult({ room, myPlayer, onRematch, onToLobby, o
             }`}>
               {!coop && <span className="w-6 text-center font-black text-white/60 tabular-nums">{i + 1}</span>}
               <p className="flex-1 font-black text-white text-sm">{playerLabel(p.no, myPlayer)}</p>
-              <p className="text-xs text-white/50">{p.words} 語{p.misses > 0 ? `・ミス ${p.misses}` : ''}</p>
+              <p className="text-xs text-white/50">{p.words} 語{p.spellFixes > 0 ? `・つづり修正 ${p.spellFixes}` : ''}{p.misses > 0 ? `・ミス ${p.misses}` : ''}</p>
               <p className="font-black text-white tabular-nums w-16 text-right">{p.score}<span className="text-[10px] text-white/40 ml-0.5">pt</span></p>
             </li>
           ))}

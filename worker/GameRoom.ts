@@ -29,6 +29,8 @@ interface Seat {
   score: number;
   words: number;
   misses: number;
+  /** 練習: つづりを1文字まちがえて直された回数 */
+  spellFixes?: number;
 }
 
 interface Stored {
@@ -283,6 +285,7 @@ export class GameRoom extends DurableObject {
       seat.score = 0;
       seat.words = 0;
       seat.misses = 0;
+      seat.spellFixes = 0;
     }
     room.status = 'playing';
     room.history = [];
@@ -359,15 +362,19 @@ export class GameRoom extends DurableObject {
       const score = Number(data.score) || 0;
       seat.score += score;
       seat.words += 1;
+      if (data.corrected_word) seat.spellFixes = (seat.spellFixes ?? 0) + 1;
+      // つづりを1文字まちがえたときは、直した単語で記録する
+      const played = data.corrected_word ? String(data.corrected_word) : word;
       room.history.push({
-        word,
+        word: played,
+        typedAs: data.corrected_word ? String(data.typed_word ?? word) : undefined,
         player,
         bonus: data.is_synonym ? '類義語ボーナス x2!' : data.is_antonym ? '対義語ボーナス x2!' : '',
         translation: String(data.user_word_jp ?? ''),
         level: data.jacet_level,
         levelEstimated: !!data.level_estimated,
         score,
-        hinted: room.hinted.some(h => sameWord(h, word)),
+        hinted: room.hinted.some(h => sameWord(h, played)),
       });
       room.notice = '';
       if (s.gameType === 'practice' && this.remainingWords().length === 0) {
@@ -605,7 +612,7 @@ export class GameRoom extends DurableObject {
       const s = room.seats[no];
       return {
         no, connected: connected.has(no), inGame: s.inGame, eliminated: s.eliminated,
-        score: s.score, words: s.words, misses: s.misses,
+        score: s.score, words: s.words, misses: s.misses, spellFixes: s.spellFixes ?? 0,
       };
     });
     return {
@@ -657,7 +664,7 @@ export class GameRoom extends DurableObject {
 }
 
 function newSeat(token: string): Seat {
-  return { token, inGame: false, eliminated: false, score: 0, words: 0, misses: 0 };
+  return { token, inGame: false, eliminated: false, score: 0, words: 0, misses: 0, spellFixes: 0 };
 }
 
 /** 画面から届いた設定を、想定している範囲に収める */

@@ -1,4 +1,5 @@
 import { useRef, useEffect, useState } from 'react';
+import SpellDiff from '@/components/SpellDiff';
 import { LEVEL_BADGE } from '@/lib/constants';
 import WordCardGrid from './WordCardGrid';
 import { sameWord } from '@/lib/wordMatch';
@@ -93,6 +94,8 @@ export default function PracticeGame({
   const userWords = history.filter(h => h.isUser);
   const hintCount = userWords.filter(h => h.hinted).length;
   const selfCount = userWords.length - hintCount;
+  // つづりを1文字まちがえて直された回数（得点は半分）
+  const spellCount = userWords.filter(h => h.typedAs).length;
   const hintsEnabled = inputMode && !!onRevealHint;
   const progressPct = wordList.length ? Math.round((usedCount / wordList.length) * 100) : 0;
 
@@ -114,7 +117,7 @@ export default function PracticeGame({
         <div className="flex justify-between text-xs text-white/30 mb-1.5">
           <span>練習モード · {wordList.length} 語</span>
           <span>
-            {hintsEnabled && <>自力 {selfCount} · ヒント {hintCount} · </>}
+            {hintsEnabled && <>自力 {selfCount} · ヒント {hintCount} · つづり修正 {spellCount} · </>}
             {usedCount} / {wordList.length} 使用済み
           </span>
         </div>
@@ -171,6 +174,9 @@ export default function PracticeGame({
                         {item.level.replace('Level ', 'Lv.')}
                       </span>
                     )}
+                    {item.typedAs && (
+                      <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-white/90 text-rose-600" title={`入力: ${item.typedAs}`}>つづり修正 ½</span>
+                    )}
                     {item.hinted && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-white text-amber-700">ヒント</span>
                     )}
@@ -179,6 +185,11 @@ export default function PracticeGame({
                     )}
                   </span>
                 </div>
+                {item.typedAs && (
+                  <div className="mt-1.5 text-white/90">
+                    <SpellDiff typed={item.typedAs} correct={item.word} />
+                  </div>
+                )}
               </div>
             </div>
           ))
@@ -199,7 +210,7 @@ export default function PracticeGame({
           <p className="text-white/40 text-sm mt-1">スコア: {score} pt</p>
           {hintsEnabled && (
             <p className="text-white/60 text-sm mt-1">
-              自力 <span className="font-black text-white">{selfCount}</span> 語 · ヒント <span className="font-black text-amber-300">{hintCount}</span> 語
+              自力 <span className="font-black text-white">{selfCount}</span> 語 · ヒント <span className="font-black text-amber-300">{hintCount}</span> 語 · つづり修正 <span className="font-black text-rose-300">{spellCount}</span> 回
             </p>
           )}
           {remaining.length > 0 && (

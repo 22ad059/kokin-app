@@ -4,6 +4,7 @@ import type { PlayerNo, RoomState } from '@/lib/online';
 import { playerLabel } from '@/lib/online';
 import { LEVEL_BADGE } from '@/lib/constants';
 import { sameWord } from '@/lib/wordMatch';
+import SpellDiff from '@/components/SpellDiff';
 
 interface Props {
   room: RoomState;
@@ -102,7 +103,7 @@ export default function PracticeBoard({
               ? 'bg-amber-500/25 border-amber-400/60 text-amber-100'
               : 'bg-white/5 border-white/10 text-white/50'
           } ${p.eliminated || !p.connected ? 'opacity-40' : ''}`}>
-            {playerLabel(p.no, myPlayer)}{coop ? ` ${p.words}語` : ` ${p.score}pt`}
+            {playerLabel(p.no, myPlayer)}{coop ? ` ${p.words}語` : ` ${p.score}pt`}{p.spellFixes > 0 ? `・修正${p.spellFixes}` : ''}
             {!p.connected && '（切断）'}
           </span>
         ))}
@@ -131,10 +132,16 @@ export default function PracticeBoard({
                         {h.level.replace('Level ', 'Lv.')}
                       </span>
                     )}
+                    {h.typedAs && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-white/90 text-rose-600">つづり修正 ½</span>}
                     {h.hinted && <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-white text-amber-700">ヒント</span>}
                     {h.score > 0 && <span className="text-[10px] font-black bg-black/25 text-white rounded-full px-1.5 py-0.5">+{h.score} pt</span>}
                   </span>
                 </div>
+                {h.typedAs && (
+                  <div className="mt-1.5 text-white/90">
+                    <SpellDiff typed={h.typedAs} correct={h.word} />
+                  </div>
+                )}
               </div>
             </div>
           );

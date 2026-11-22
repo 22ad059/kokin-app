@@ -15,4 +15,6 @@ export interface PracticeMessage {
   score?: number;
   /** ヒント（和訳）を見てから出した単語か */
   hinted?: boolean;
+  /** つづりを1文字まちがえて直されたとき、入力されたつづり（得点は半分） */
+  typedAs?: string;
 }

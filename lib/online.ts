@@ -43,6 +43,8 @@ export interface OnlineMove {
   score: number;
   /** 練習: ヒント（和訳）が出ていた単語 */
   hinted?: boolean;
+  /** 練習: つづりを1文字まちがえて直されたとき、入力されたつづり（得点は半分） */
+  typedAs?: string;
 }
 
 export interface PlayerInfo {
@@ -57,6 +59,8 @@ export interface PlayerInfo {
   words: number;
   /** 練習: 使えなかった・時間切れの回数 */
   misses: number;
+  /** 練習: つづりを1文字まちがえて直された回数 */
+  spellFixes: number;
 }
 
 /** waiting: 部屋でルールを決めている / playing: 対戦中 / finished: 決着 */

@@ -20,3 +20,24 @@ export function sameWord(a: string, b: string): boolean {
   const keysB = [baseWord(b), ...altWords(b)];
   return keysA.some(k => keysB.includes(k));
 }
+
+/**
+ * a と b が「1文字だけ違う」か（1文字の置き換え・抜け・余分・隣どうしの入れ替え）。
+ * 同じ単語のときは false。
+ */
+export function oneEditApart(a: string, b: string): boolean {
+  a = a.toLowerCase(); b = b.toLowerCase();
+  if (a === b) return false;
+  if (Math.abs(a.length - b.length) > 1) return false;
+  if (a.length === b.length) {
+    const diff: number[] = [];
+    for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) diff.push(i);
+    if (diff.length === 1) return true;
+    // 隣どうしの入れ替え（例: freind → friend）
+    return diff.length === 2 && diff[1] === diff[0] + 1 && a[diff[0]] === b[diff[1]] && a[diff[1]] === b[diff[0]];
+  }
+  const [s, l] = a.length < b.length ? [a, b] : [b, a];
+  let i = 0;
+  while (i < s.length && s[i] === l[i]) i++;
+  return s.slice(i) === l.slice(i + 1);
+}

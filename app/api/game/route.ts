@@ -2,7 +2,7 @@ import OpenAI from 'openai';
 import { NextResponse } from 'next/server';
 import { calculateScore } from '@/utils/scoreCalculator';
 import { lookupTranslation, lookupEntry, loadWords } from '@/lib/wordLoader';
-import { sameWord } from '@/lib/wordMatch';
+import { sameWord, baseWord, altWords, oneEditApart } from '@/lib/wordMatch';
 
 /**
  * スペルチェックモード用: 単語にそれらしいタイポを1つ仕込む。
@@ -48,6 +48,34 @@ function makeTypo(word: string): string | null {
   return null;
 }
 
+/**
+ * 辞書にない入力が、1文字違いの単語のつづり間違いと思われるとき、その単語を返す。
+ * 選んだリストのまだ出ていない単語 → 選んだジャンルの単語 → そのほかの単語 の順で探す。
+ * 短い単語（4文字未満）は別の単語と取り違えやすいので直さない。
+ */
+function findSpellingFix(
+  typed: string,
+  practiceWords: string[],
+  genres: string[],
+  history: string[],
+  sameEntry: (a: string, b: string) => boolean,
+): string | null {
+  const t = typed.toLowerCase();
+  if (t.length < 4) return null;
+  const keys = (w: string) => [baseWord(w), ...altWords(w)];
+  const near = (w: string) => keys(w).some(k => k.length >= 4 && oneEditApart(t, k));
+  const unused = (w: string) => !history.some(h => sameEntry(h, w));
+  // 直した後の形（括弧の別の言い方に近ければそちら）
+  const shape = (w: string) => keys(w).find(k => k.length >= 4 && oneEditApart(t, k)) ?? baseWord(w);
+
+  const inList = practiceWords.filter(w => near(w) && unused(w));
+  if (inList.length) return shape(inList[0]);
+  const all = loadWords().filter(w => near(w.word));
+  const inGenre = all.filter(w => genres.includes(w.genre));
+  const best = inGenre.find(w => unused(w.word)) ?? inGenre[0] ?? all.find(w => unused(w.word)) ?? all[0];
+  return best ? shape(best.word) : null;
+}
+
 const LEVEL_RE = /^Level [1-8]$/;
 const toLevel = (est: unknown): string | null => {
   const n = Number(est);
@@ -69,7 +97,6 @@ async function handleGenrePractice(
   genres: string[],
   levels: string[],
 ) {
-  const word = userWord.trim();
   const invalid = (reason: string) => NextResponse.json({
     is_valid: false, reason,
     is_synonym: false, is_antonym: false, score: 0,
@@ -77,11 +104,22 @@ async function handleGenrePractice(
     ai_response: '', user_word_jp: '', ai_response_jp: '',
   });
 
-  if (!/^[a-zA-Z][a-zA-Z' -]*$/.test(word)) return invalid('英単語を入力してください');
+  const typed = userWord.trim();
+  if (!/^[a-zA-Z][a-zA-Z' -]*$/.test(typed)) return invalid('英単語を入力してください');
   // 辞書の見出し語を通して照合する（doctor の後の doc なども同じ語として扱う）
   const canon = (w: string) => lookupEntry(w)?.word ?? w;
   const sameEntry = (a: string, b: string) => sameWord(canon(a), canon(b));
-  if (history.some(h => sameEntry(h, word))) return invalid('その単語はすでに使われています');
+
+  // つづりの1文字違いは、近い単語に直して認める（得点は半分）
+  let word = typed;
+  let corrected = false;
+  if (!lookupEntry(typed)) {
+    const fix = findSpellingFix(typed, practiceWords, genres, history, sameEntry);
+    if (fix) { word = fix; corrected = true; }
+  }
+  if (history.some(h => sameEntry(h, word))) {
+    return invalid(corrected ? `「${word}」のつづりだと思われますが、その単語はすでに使われています` : 'その単語はすでに使われています');
+  }
 
   const entry = lookupEntry(word);
   const dictGenreMatches = !!entry && genres.includes(entry.genre);
@@ -148,7 +186,10 @@ JSON形式のみで回答: {"is_english": boolean, "fits_genre": boolean, "reaso
     is_valid: true, reason: '',
     is_synonym: isSynonym, is_antonym: isAntonym,
     jacet_level: jacetLevel, level_estimated: levelEstimated,
-    score: calculateScore(jacetLevel, isSynonym, isAntonym),
+    score: corrected ? Math.floor(calculateScore(jacetLevel, isSynonym, isAntonym) / 2) : calculateScore(jacetLevel, isSynonym, isAntonym),
+    // つづりを直したとき: 直した単語と、入力されたつづり
+    corrected_word: corrected ? word : undefined,
+    typed_word: corrected ? typed : undefined,
     user_word_jp: entry?.translation || lookupTranslation(word) || String(ai.translation ?? ''),
     ai_response: aiResponse,
     ai_jacet_level: aiEntry?.level ?? 'Unknown',
