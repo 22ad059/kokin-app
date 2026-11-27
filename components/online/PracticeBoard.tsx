@@ -164,7 +164,9 @@ export default function PracticeBoard({
         <p className="text-xs font-bold text-white/50 mb-2">
           {room.judging
             ? '判定中…'
-            : isMyTurn ? `あなたの番！（残り ${remaining.length} 語）` : `${playerLabel(room.currentPlayer, myPlayer)}の番…`}
+            : isMyTurn
+              ? `あなたの番！（残り ${remaining.length} 語）${coop ? '' : ' 時間内に出せないと脱落'}`
+              : me?.eliminated ? 'あなたは脱落しました。最後まで見られます' : `${playerLabel(room.currentPlayer, myPlayer)}の番…`}
         </p>
         {room.turnRemainingMs !== null && (
           <Countdown key={`${room.history.length}-${room.currentPlayer}-${room.notice}`} ms={room.turnRemainingMs} />
@@ -214,7 +216,7 @@ export default function PracticeBoard({
       {confirm ? (
         <div className="self-center flex items-center gap-2 animate-fade-up">
           <span className="text-xs text-white/60">
-            {confirm === 'retire' ? 'みんなのゲームを終わりにしますか？' : coop ? '退出しますか？' : '退出しますか？（あなたの記録はここまで）'}
+            {confirm === 'retire' ? 'みんなのゲームを終わりにしますか？' : coop ? '退出しますか？' : '退出しますか？（あなたは脱落になります）'}
           </span>
           <button
             onClick={() => { setConfirm(null); if (confirm === 'retire') onRetire(); else onLeave(); }}

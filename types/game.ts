@@ -8,4 +8,6 @@ export interface ChatMessage {
   /** スペルチェックモードでAIがわざと間違えた場合の正しいスペル */
   correctWord?: string;
   score?: number;
+  /** つづり1文字OK で直されたとき、入力されたつづり（得点は半分） */
+  typedAs?: string;
 }

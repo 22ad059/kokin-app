@@ -17,6 +17,21 @@ import { sameWord } from '@/lib/wordMatch';
 const KINDS = new Set(['start', 'round', 'end']);
 const MAX_RECORDS_PER_POST = 50;
 
+const isNum = (v: unknown): v is number => typeof v === 'number' && Number.isFinite(v);
+const isArr = (v: unknown) => Array.isArray(v);
+
+/** 周の記録の中身がそろっているか（崩れた記録が 1 件あるだけで書き出しが失敗しないように） */
+function isRoundBody(o: Record<string, unknown>): boolean {
+  return isNum(o.round) && isNum(o.startedAt) && isNum(o.endedAt) && isNum(o.score)
+    && (o.endReason === 'retire' || o.endReason === 'time' || o.endReason === 'clear')
+    && isArr(o.moves) && (o.moves as unknown[]).every(m => !!m && typeof m === 'object'
+      && typeof (m as Record<string, unknown>).word === 'string'
+      && ((m as Record<string, unknown>).by === 'user' || (m as Record<string, unknown>).by === 'ai'))
+    && isArr(o.rejected)
+    && isArr(o.hinted) && (o.hinted as unknown[]).every(h => typeof h === 'string')
+    && isArr(o.reviewWords) && (o.reviewWords as unknown[]).every(w => typeof w === 'string');
+}
+
 function isRecord(r: unknown): r is ExperimentRecord {
   if (!r || typeof r !== 'object') return false;
   const o = r as Record<string, unknown>;
@@ -24,8 +39,9 @@ function isRecord(r: unknown): r is ExperimentRecord {
     && typeof o.sessionId === 'string' && o.sessionId.length <= 100
     && typeof o.pid === 'number' && isValidParticipantId(o.pid)
     && typeof o.set === 'string' && Object.hasOwn(EXPERIMENT_SETS, o.set)
-    && typeof o.at === 'number'
-    && typeof o.kind === 'string' && KINDS.has(o.kind);
+    && isNum(o.at)
+    && typeof o.kind === 'string' && KINDS.has(o.kind)
+    && (o.kind !== 'round' || isRoundBody(o));
 }
 
 export async function POST(req: NextRequest) {
@@ -79,7 +95,8 @@ function sortRounds(records: ExperimentRecord[]): RoundRecord[] {
 export async function GET(req: NextRequest) {
   const format = req.nextUrl.searchParams.get('format') ?? 'summary';
   let records: ExperimentRecord[];
-  try { records = await allRecords(); } catch (e) {
+  // 保存済みの記録のうち、形が崩れたものは書き出しから外す（前の版で保存された記録への備え）
+  try { records = (await allRecords()).filter(isRecord); } catch (e) {
     console.error('experiment read failed:', e);
     return NextResponse.json({ error: '記録を読み込めませんでした' }, { status: 500 });
   }

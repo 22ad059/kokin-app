@@ -239,6 +239,8 @@ export class GameRoom extends DurableObject {
     if (s.gameType === 'practice' && (!s.levels.length || !s.genres.length)) {
       return this.sendTo(ws, { type: 'error', message: 'レベルとジャンルを選んでください' });
     }
+    // 練習の競争・対戦のミスOK は「時間内に答えられなかったら脱落」なので、時間制限なしでは始めない
+    if (retryOnMiss(s) && s.timeLimit === null) room.settings = { ...s, timeLimit: 15 };
 
     room.starting = true;
     await this.save();
@@ -318,7 +320,8 @@ export class GameRoom extends DurableObject {
       return this.sendTo(ws, { type: 'error', message: `${s.charLimit}文字の英単語を入力してください` });
     }
 
-    // 判定中は時間を止める（1台で遊ぶときと同じ）
+    // 判定中は時間を止める（1台で遊ぶときと同じ）。競争でミスしたときは、残り時間から続ける
+    const leftMs = room.turnDeadline ? Math.max(0, room.turnDeadline - Date.now()) : null;
     room.judging = true;
     room.turnDeadline = null;
     await this.save();
@@ -335,6 +338,7 @@ export class GameRoom extends DurableObject {
           mode: 'pvp',
           charLimit: s.charLimit,
           posLimit: s.posLimit,
+          spellFix: s.spellFix,
         })
         : await this.callApp('/api/game', {
           userWord: word,
@@ -388,10 +392,16 @@ export class GameRoom extends DurableObject {
       } else {
         this.advance();
       }
+    } else if (retryOnMiss(s)) {
+      // 練習の競争・対戦のミスOK: ミスは何度してもよい。自分の番のまま、残り時間で打ち直す
+      seat.misses += 1;
+      room.notice = `${label(player)}の「${word}」は使えません：${String(data.reason || '')}`;
+      // 残り時間に下限は付けない（時間切れ寸前に使えない単語を送り続けて、時間を引き延ばせないように）
+      room.turnDeadline = leftMs !== null ? Date.now() + leftMs : null;
     } else if (s.gameType === 'battle') {
       this.dropOut(player, String(data.reason || 'テーマに合っていません'), word);
     } else {
-      // 練習: 使えない単語はミスとして数え、次の人へ
+      // 協力: 使えない単語はミスとして数え、次の人へ
       seat.misses += 1;
       room.notice = `${label(player)}の「${word}」は使えません：${String(data.reason || '')}`;
       this.advance();
@@ -484,17 +494,18 @@ export class GameRoom extends DurableObject {
     if (!seat || !seat.inGame || seat.eliminated) return;
     const wasTurn = room.currentPlayer === player;
     seat.eliminated = true;
-    const battle = room.settings.gameType === 'battle';
-    if (battle) room.eliminations.push({ player, word, reason });
-    room.notice = battle ? `${label(player)}が脱落：${reason}` : reason;
+    // 対戦と練習の競争は、脱落した人を記録し、最後の1人が勝ち
+    const knockout = room.settings.gameType === 'battle' || isCompete(room.settings);
+    if (knockout) room.eliminations.push({ player, word, reason });
+    room.notice = knockout ? `${label(player)}が脱落：${reason}` : reason;
 
     const act = this.active();
-    if (battle && act.length <= 1) {
+    if (knockout && act.length <= 1) {
       room.winner = act[0] ?? null;
       this.finish(reason);
       return;
     }
-    if (!battle && act.length === 0) {
+    if (!knockout && act.length === 0) {
       this.finish(reason);
       return;
     }
@@ -510,9 +521,9 @@ export class GameRoom extends DurableObject {
     room.reason = reason;
     room.judging = false;
     room.turnDeadline = null;
-    if (room.settings.gameType === 'practice' && room.settings.practiceMode === 'compete') {
-      // 競争: 点数が一番高い人（同点なら引き分け）
-      const ranked = this.seatNumbers().filter(p => room.seats[p].inGame)
+    if (isCompete(room.settings) && this.active().length > 1) {
+      // 競争で、リストを出し切った・リタイアしたとき: 残っている人の中で点数が一番高い人（同点なら引き分け）
+      const ranked = this.active()
         .sort((a, b) => room.seats[b].score - room.seats[a].score);
       const top = ranked[0];
       room.winner = top !== undefined && (ranked.length < 2 || room.seats[top].score > room.seats[ranked[1]].score) ? top : null;
@@ -541,10 +552,10 @@ export class GameRoom extends DurableObject {
     const now = Date.now();
     if (room.status === 'playing' && !room.judging && room.turnDeadline && now >= room.turnDeadline) {
       const p = room.currentPlayer;
-      if (room.settings.gameType === 'battle') {
+      if (room.settings.gameType === 'battle' || isCompete(room.settings)) {
         this.dropOut(p, '時間切れ！');
       } else {
-        // 練習: 時間切れはミスとして数え、次の人へ
+        // 協力: 時間切れはミスとして数え、次の人へ
         room.seats[p].misses += 1;
         room.notice = `${label(p)}は時間切れ`;
         this.advance();
@@ -663,6 +674,16 @@ export class GameRoom extends DurableObject {
   }
 }
 
+/** 練習ゲームの競争か */
+function isCompete(s: RoomSettings): boolean {
+  return s.gameType === 'practice' && s.practiceMode === 'compete';
+}
+
+/** 使えない単語を出しても脱落せず、打ち直せるルールか（練習の競争・対戦のミスOK） */
+function retryOnMiss(s: RoomSettings): boolean {
+  return isCompete(s) || (s.gameType === 'battle' && s.missOk);
+}
+
 function newSeat(token: string): Seat {
   return { token, inGame: false, eliminated: false, score: 0, words: 0, misses: 0, spellFixes: 0 };
 }
@@ -682,5 +703,7 @@ function sanitizeSettings(s: RoomSettings): RoomSettings {
     levels: Array.isArray(s.levels) ? s.levels.filter(l => LEVELS.includes(l)) : [],
     genres: Array.isArray(s.genres) ? s.genres.map(String).filter(g => g.length <= 30).slice(0, 30) : [],
     timeLimit: int(s.timeLimit, 5, 60),
+    missOk: !!s.missOk,
+    spellFix: !!s.spellFix,
   };
 }

@@ -240,6 +240,7 @@ export default function OnlineRoom({ session, onExit }: { session: OnlineSession
     level: m.level,
     levelEstimated: m.levelEstimated,
     score: m.score,
+    typedAs: m.typedAs,
   }));
   const myScore = me?.score ?? 0;
   const topOther = Math.max(0, ...inGame.filter(p => !p.eliminated && p.no !== myPlayer).map(p => p.score));

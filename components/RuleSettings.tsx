@@ -80,7 +80,7 @@ export function ThemeCard({ theme, setTheme, onEnter, autoFocus = true }: {
 }
 
 /** 品詞・文字数・時間の制限 */
-export function LimitsCard({ charLimit, setCharLimit, posLimit, setPosLimit, timeLimit, setTimeLimit, onlyTime = false }: {
+export function LimitsCard({ charLimit, setCharLimit, posLimit, setPosLimit, timeLimit, setTimeLimit, onlyTime = false, missOk, setMissOk, spellFix, setSpellFix }: {
   charLimit: number | null;
   setCharLimit: (v: number | null) => void;
   posLimit: string | null;
@@ -89,7 +89,23 @@ export function LimitsCard({ charLimit, setCharLimit, posLimit, setPosLimit, tim
   setTimeLimit: (v: number | null) => void;
   /** 時間制限だけを出す（練習ゲーム用） */
   onlyTime?: boolean;
+  /** ミスOK（使えない単語は打ち直せる。時間切れでアウト）。渡したときだけ切り替えを出す */
+  missOk?: boolean;
+  setMissOk?: (v: boolean) => void;
+  /** つづり1文字OK（1文字違いは直して認める。得点は半分）。渡したときだけ切り替えを出す */
+  spellFix?: boolean;
+  setSpellFix?: (v: boolean) => void;
 }) {
+  // ミスOK は時間切れで決着するので、時間制限が必要。時間制限を外すとミスOK も外す
+  const toggleTime = () => {
+    if (timeLimit === null) setTimeLimit(15);
+    else { setTimeLimit(null); if (missOk) setMissOk?.(false); }
+  };
+  const toggleMissOk = () => {
+    if (!setMissOk) return;
+    if (!missOk && timeLimit === null) setTimeLimit(15);
+    setMissOk(!missOk);
+  };
   return (
     <div className="bg-white/5 backdrop-blur-xl border border-white/10 rounded-3xl p-5">
       {!onlyTime && (
@@ -156,7 +172,7 @@ export function LimitsCard({ charLimit, setCharLimit, posLimit, setPosLimit, tim
               </div>
             )}
             <button
-              onClick={() => setTimeLimit(timeLimit === null ? 15 : null)}
+              onClick={toggleTime}
               className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${timeLimit !== null ? 'bg-indigo-500' : 'bg-white/15'}`}
             >
               <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${timeLimit !== null ? 'left-6' : 'left-1'}`} />
@@ -167,6 +183,44 @@ export function LimitsCard({ charLimit, setCharLimit, posLimit, setPosLimit, tim
           <p className="text-[11px] text-white/30 mt-2">1手 {timeLimit} 秒。時間切れになるとそのプレイヤーの負け</p>
         )}
       </div>
+
+      {/* ミスOK */}
+      {setMissOk && (
+        <div className="border-t border-white/10 mt-4 pt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-white/40 uppercase tracking-widest">ミスOK</p>
+              <p className="text-[11px] text-white/30 mt-1">使えない単語は何度でも打ち直せる。時間切れでアウト</p>
+            </div>
+            <button
+              onClick={toggleMissOk}
+              aria-pressed={!!missOk}
+              className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${missOk ? 'bg-indigo-500' : 'bg-white/15'}`}
+            >
+              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${missOk ? 'left-6' : 'left-1'}`} />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* つづり1文字OK */}
+      {setSpellFix && (
+        <div className="border-t border-white/10 mt-4 pt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-xs font-bold text-white/40 uppercase tracking-widest">つづり1文字OK</p>
+              <p className="text-[11px] text-white/30 mt-1">つづりが1文字違うだけなら直して認める。得点は半分</p>
+            </div>
+            <button
+              onClick={() => setSpellFix(!spellFix)}
+              aria-pressed={!!spellFix}
+              className={`relative w-11 h-6 rounded-full transition-colors shrink-0 ${spellFix ? 'bg-indigo-500' : 'bg-white/15'}`}
+            >
+              <span className={`absolute top-1 w-4 h-4 bg-white rounded-full shadow transition-all ${spellFix ? 'left-6' : 'left-1'}`} />
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

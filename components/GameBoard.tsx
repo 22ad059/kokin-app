@@ -1,6 +1,7 @@
 import { useRef, useEffect, useState } from 'react';
 import { ChatMessage } from '@/types/game';
 import { LEVEL_BADGE } from '@/lib/constants';
+import SpellDiff from '@/components/SpellDiff';
 
 /** 1手ごとのカウントダウン。key を変えて再マウントすることでリセットする */
 function TurnTimer({ seconds, paused, onTimeout }: { seconds: number; paused: boolean; onTimeout: () => void }) {
@@ -223,7 +224,15 @@ export default function GameBoard({
                       {item.levelEstimated ? '≈' : ''}{item.level.replace('Level ', 'Lv.')}
                     </span>
                   )}
+                  {item.typedAs && (
+                    <span className="text-[10px] px-1.5 py-0.5 rounded-full font-black bg-white/90 text-rose-600">つづり修正 ½</span>
+                  )}
                 </div>
+                {item.typedAs && (
+                  <div className="mt-1.5 text-white/90">
+                    <SpellDiff typed={item.typedAs} correct={item.word} />
+                  </div>
+                )}
                 {item.translation && (
                   <p className="text-xs mt-1 text-white/60">{item.translation}</p>
                 )}

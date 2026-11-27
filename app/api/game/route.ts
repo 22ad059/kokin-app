@@ -76,6 +76,25 @@ function findSpellingFix(
   return best ? shape(best.word) : null;
 }
 
+/**
+ * 対戦の「つづり1文字OK」: 辞書にない入力に 1 文字違いの辞書の単語があれば、いちばんよく使われる語を返す。
+ * まだ出ていない語・文字数制限に合う語だけ。短い単語（4文字未満）は取り違えやすいので直さない。
+ */
+function findBattleSpellingFix(typed: string, history: string[], charLimit: unknown): { word: string; used: boolean } | null {
+  const t = typed.toLowerCase();
+  if (t.length < 4) return null;
+  const used = (w: string) => history.some(h => sameWord(h, w));
+  const cands = loadWords()
+    .flatMap(e => [baseWord(e.word), ...altWords(e.word)].map(k => ({ k, rank: e.rank })))
+    .filter(({ k }) => k.length >= 4 && /^[a-z]+$/.test(k) && oneEditApart(t, k))
+    .filter(({ k }) => typeof charLimit !== 'number' || k.length === charLimit)
+    .sort((a, b) => a.rank - b.rank);
+  const fresh = cands.find(c => !used(c.k));
+  if (fresh) return { word: fresh.k, used: false };
+  // まだ出ていない候補がなく、出た単語のつづり違いと思われるとき
+  return cands[0] ? { word: cands[0].k, used: true } : null;
+}
+
 const LEVEL_RE = /^Level [1-8]$/;
 const toLevel = (est: unknown): string | null => {
   const n = Number(est);
@@ -201,7 +220,9 @@ JSON形式のみで回答: {"is_english": boolean, "fits_genre": boolean, "reaso
 
 export async function POST(req: Request) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const { theme, themeDefinition, userWord, history, mode, charLimit, posLimit, spellTrap, practiceWords, practiceGenres, practiceLevels, practiceFixed } = await req.json();
+  const { theme, themeDefinition, userWord, history, mode, charLimit: rawCharLimit, posLimit, spellTrap, practiceWords, practiceGenres, practiceLevels, practiceFixed, spellFix } = await req.json();
+  // 文字数制限は数値のときだけ使う（送られてこなかったときに「undefined 文字」と判定させないように）
+  const charLimit: number | null = typeof rawCharLimit === 'number' ? rawCharLimit : null;
 
   if (typeof userWord !== 'string' || !userWord.trim() || !Array.isArray(history)) {
     return NextResponse.json({ error: '不正なリクエストです' }, { status: 400 });
@@ -300,23 +321,25 @@ JSON形式のみで回答: {"is_synonym": boolean, "is_antonym": boolean, "ai_re
 
   // ── 通常モード ──
   // 品詞制限用: JACET8000 辞書の品詞（参考情報としてプロンプトに渡し、判定の二重チェックにも使う）
-  const dictPos = posLimit ? (lookupEntry(userWord)?.pos ?? '') : '';
+  const dictPosOf = (w: string) => (posLimit ? (lookupEntry(w)?.pos ?? '') : '');
 
-  const prompt = `
+  const promptFor = (w: string) => {
+    const dictPos = dictPosOf(w);
+    return `
     あなたは英単語ゲームの審判兼、対戦相手です。
 
     【現在の状況】
     - ゲームモード: ${mode === 'pvp' ? '対戦モード(PvP)' : '1人用モード(Solo)'}
     - テーマ: ${theme}${themeDefinition ? `\n    - お題の定義: ${themeDefinition}` : ''}${posLimit ? `\n    - 品詞制限: 「${posLimit}」の単語のみ使用可` : ''}${charLimit !== null ? `\n    - 文字数制限: ちょうど ${charLimit} 文字` : ''}
     - 履歴（使用済み単語）: [${history.join(', ')}]
-    - ユーザーの入力: ${userWord}
+    - ユーザーの入力: ${w}
 
     【判定ルール】
-    1. "${userWord}" が英語の単語かどうか確認する。英語以外（日本語、数字、記号など）は即座に不合格。${charLimit !== null ? `\n    1b. "${userWord}" がちょうど ${charLimit} 文字かどうか確認する。文字数が異なる場合は不合格。` : ''}${posLimit ? `\n    1c. 【重要】"${userWord}" に「${posLimit}」としての用法が英語の辞書上1つでもあるか確認する。用法があれば合格とし pos に「${posLimit}」と記入する（例: water は主に名詞だが「水をやる」という動詞用法があるので動詞制限でも合格）。まったく用法がない場合のみ不合格。${dictPos && dictPos !== posLimit ? `参考: JACET8000辞書の主な品詞は「${dictPos}」だが、「${posLimit}」の用法が別にあれば合格としてよい。` : dictPos ? `参考: JACET8000辞書でも品詞は「${dictPos}」。` : ''}` : ''}
-    2. 【最重要・古今東西ゲームのルール】"${userWord}" が「${theme}」というカテゴリに属する具体例（実例・メンバー）かどうかを判定する。${themeDefinition ? `\n       お題の定義「${themeDefinition}」に照らして判定すること。` : ''}
+    1. "${w}" が英語の単語かどうか確認する。英語以外（日本語、数字、記号など）は即座に不合格。${charLimit !== null ? `\n    1b. "${w}" がちょうど ${charLimit} 文字かどうか確認する。文字数が異なる場合は不合格。` : ''}${posLimit ? `\n    1c. 【重要】"${w}" に「${posLimit}」としての用法が英語の辞書上1つでもあるか確認する。用法があれば合格とし pos に「${posLimit}」と記入する（例: water は主に名詞だが「水をやる」という動詞用法があるので動詞制限でも合格）。まったく用法がない場合のみ不合格。${dictPos && dictPos !== posLimit ? `参考: JACET8000辞書の主な品詞は「${dictPos}」だが、「${posLimit}」の用法が別にあれば合格としてよい。` : dictPos ? `参考: JACET8000辞書でも品詞は「${dictPos}」。` : ''}` : ''}
+    2. 【最重要・古今東西ゲームのルール】"${w}" が「${theme}」というカテゴリに属する具体例（実例・メンバー）かどうかを判定する。${themeDefinition ? `\n       お題の定義「${themeDefinition}」に照らして判定すること。` : ''}
        テーマに関連・連想されるだけでカテゴリの実例ではない単語は不合格。
        例: テーマが ANIMAL の場合 → dog は合格（動物の実例）／ zoo は不合格（関連するが動物ではない）／ cute は不合格（連想語）。
-    3. "${userWord}" が履歴に含まれていないか（重複禁止）。
+    3. "${w}" が履歴に含まれていないか（重複禁止）。
     4. 直前の単語 "${history[history.length - 1] || ''}" の類義語（Synonym）ならボーナス対象とする。
     5. 直前の単語 "${history[history.length - 1] || ''}" の対義語（Antonym）ならボーナス対象とする。類義語と対義語が同時に成立することはない。
 
@@ -339,37 +362,57 @@ JSON形式のみで回答: {"is_synonym": boolean, "is_antonym": boolean, "ai_re
       "fun_fact_jp": "豆知識の日本語訳"
     }
   `;
+  };
 
-  try {
+  // 1 語を AI に判定させる（品詞制限は辞書でも二重チェックする）
+  const judge = async (w: string) => {
     const response = await openai.chat.completions.create({
       model: 'gpt-4o-mini',
-      messages: [{ role: 'user', content: prompt }],
+      messages: [{ role: 'user', content: promptFor(w) }],
       response_format: { type: 'json_object' },
       temperature: 0.3,
     });
-
-    const aiData = JSON.parse(response.choices[0].message.content || '{}');
-
+    const d = JSON.parse(response.choices[0].message.content || '{}');
     // 品詞制限の二重チェック: AI判定と辞書のどちらも制限品詞に一致しない場合は不合格にする
     // （aiPos は「水をやる」のような別品詞の用法も含めて判定させているため includes で照合する）
-    if (posLimit && aiData.is_valid) {
-      const aiPos = String(aiData.pos ?? '');
+    const dictPos = dictPosOf(w);
+    if (posLimit && d.is_valid) {
+      const aiPos = String(d.pos ?? '');
       if (!aiPos.includes(posLimit) && dictPos !== posLimit && (aiPos || dictPos)) {
-        aiData.is_valid = false;
-        aiData.reason = `「${userWord}」は${posLimit}ではありません（品詞: ${dictPos || aiPos}）`;
+        d.is_valid = false;
+        d.reason = `「${w}」は${posLimit}ではありません（品詞: ${dictPos || aiPos}）`;
+      }
+    }
+    return d;
+  };
+
+  try {
+    let word = String(userWord).trim();
+    let aiData = await judge(word);
+
+    // つづり1文字OK: 不合格で辞書にない入力なら、1文字違いの辞書の単語で判定し直す（得点は半分）
+    let corrected = false;
+    if (spellFix && !aiData.is_valid && !lookupEntry(word)) {
+      const fix = findBattleSpellingFix(word, history as string[], charLimit);
+      if (fix?.used) {
+        aiData.reason = `「${fix.word}」のつづりだと思われますが、その単語はすでに使われています`;
+      } else if (fix) {
+        const again = await judge(fix.word);
+        if (again.is_valid) { aiData = again; word = fix.word; corrected = true; }
       }
     }
 
     // JACET8000 からレベルを取得してスコア計算（リスト外の単語はAIの推定レベルで代用）
 
-    const userEntry = lookupEntry(userWord);
+    const userEntry = lookupEntry(word);
     let jacetLevel = userEntry?.level ?? 'Unknown';
     let levelEstimated = false;
     if (jacetLevel === 'Unknown') {
       const est = toLevel(aiData.user_level_estimate);
       if (est) { jacetLevel = est; levelEstimated = true; }
     }
-    const finalScore = calculateScore(jacetLevel, aiData.is_synonym, aiData.is_antonym);
+    const fullScore = calculateScore(jacetLevel, aiData.is_synonym, aiData.is_antonym);
+    const finalScore = corrected ? Math.floor(fullScore / 2) : fullScore;
 
     // AI の返答のレベルも取得（同様にリスト外は推定）
     const aiEntry = aiData.ai_response ? lookupEntry(aiData.ai_response) : undefined;
@@ -381,7 +424,7 @@ JSON形式のみで回答: {"is_synonym": boolean, "is_antonym": boolean, "ai_re
     }
 
     // 日本語訳（Excelから優先、なければAIのfallback）
-    const userWordJp = lookupTranslation(userWord);
+    const userWordJp = lookupTranslation(word);
     const aiResponseJp = aiData.ai_response
       ? (lookupTranslation(aiData.ai_response) || aiData.ai_response_jp)
       : aiData.ai_response_jp;
@@ -410,6 +453,9 @@ JSON形式のみで回答: {"is_synonym": boolean, "is_antonym": boolean, "ai_re
       ai_response_jp: aiResponseJp,
       user_word_jp: userWordJp,
       score: finalScore,
+      // つづりを直したとき: 直した単語と、入力されたつづり
+      corrected_word: corrected ? word : undefined,
+      typed_word: corrected ? String(userWord).trim() : undefined,
     });
 
   } catch (error) {

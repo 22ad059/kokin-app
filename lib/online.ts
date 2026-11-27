@@ -30,6 +30,10 @@ export interface RoomSettings {
   // ── 共通 ──
   /** 1手ごとの制限時間（秒）。null は無制限 */
   timeLimit: number | null;
+  /** 対戦: ミスOK（使えない単語は打ち直せる。時間切れで脱落） */
+  missOk: boolean;
+  /** 対戦: つづり1文字OK（1文字違いは直して認める。得点は半分） */
+  spellFix: boolean;
 }
 
 export interface OnlineMove {
@@ -135,6 +139,8 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   levels: ['Level 1', 'Level 2'],
   genres: [],
   timeLimit: null,
+  missOk: false,
+  spellFix: false,
 };
 
 export function randomRoomCode(): string {

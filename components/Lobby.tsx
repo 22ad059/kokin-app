@@ -14,6 +14,10 @@ interface LobbyProps {
   setPosLimit: (v: string | null) => void;
   timeLimit: number | null;
   setTimeLimit: (v: number | null) => void;
+  missOk: boolean;
+  setMissOk: (v: boolean) => void;
+  spellFix: boolean;
+  setSpellFix: (v: boolean) => void;
   starting: boolean;
   onStart: () => void;
   onBack: () => void;
@@ -25,7 +29,7 @@ const MODES = [
   { label: '対戦', sub: '2人で勝負', img: '/friend-icon.png', pvp: true,  gradient: 'from-rose-500 to-pink-600 shadow-rose-500/30' },
 ] as const;
 
-export default function Lobby({ isPvP, setIsPvP, isOvertake, setIsOvertake, isSpellTrap, setIsSpellTrap, theme, setTheme, charLimit, setCharLimit, posLimit, setPosLimit, timeLimit, setTimeLimit, starting, onStart, onBack }: LobbyProps) {
+export default function Lobby({ isPvP, setIsPvP, isOvertake, setIsOvertake, isSpellTrap, setIsSpellTrap, theme, setTheme, charLimit, setCharLimit, posLimit, setPosLimit, timeLimit, setTimeLimit, missOk, setMissOk, spellFix, setSpellFix, starting, onStart, onBack }: LobbyProps) {
   return (
     <div className="w-full max-w-sm mx-auto flex flex-col gap-3">
       <header className="mb-5">
@@ -97,7 +101,7 @@ export default function Lobby({ isPvP, setIsPvP, isOvertake, setIsOvertake, isSp
       <ThemeCard theme={theme} setTheme={setTheme} onEnter={onStart} />
 
       {/* 制限設定（品詞・文字数・時間をまとめた1枚） */}
-      <LimitsCard charLimit={charLimit} setCharLimit={setCharLimit} posLimit={posLimit} setPosLimit={setPosLimit} timeLimit={timeLimit} setTimeLimit={setTimeLimit} />
+      <LimitsCard charLimit={charLimit} setCharLimit={setCharLimit} posLimit={posLimit} setPosLimit={setPosLimit} timeLimit={timeLimit} setTimeLimit={setTimeLimit} missOk={missOk} setMissOk={setMissOk} spellFix={spellFix} setSpellFix={setSpellFix} />
 
       {/* スタートボタン */}
       <button

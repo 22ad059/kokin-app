@@ -134,7 +134,9 @@ export default function RoomLobby({ room, myPlayer, errorMsg, onSettings, onStar
             {battle ? (
               <>
                 <TurnRuleSelector isOvertake={s.isOvertake} setIsOvertake={v => update({ isOvertake: v })} />
-                <p className="text-[11px] text-white/30 mt-3">テーマ外の単語や時間切れで脱落。最後に残った1人の勝ち。</p>
+                <p className="text-[11px] text-white/30 mt-3">
+                  {s.missOk ? 'テーマ外の単語は打ち直せる。時間切れで脱落。最後に残った1人の勝ち。' : 'テーマ外の単語や時間切れで脱落。最後に残った1人の勝ち。'}
+                </p>
               </>
             ) : (
               <div className="mt-4">
@@ -142,11 +144,12 @@ export default function RoomLobby({ room, myPlayer, errorMsg, onSettings, onStar
                 <div className="grid grid-cols-2 gap-2">
                   {([
                     { v: 'coop', label: '協力', sub: 'みんなで出し切る' },
-                    { v: 'compete', label: '競争', sub: '点数で勝負' },
+                    { v: 'compete', label: '競争', sub: '時間切れで脱落' },
                   ] as const).map(o => (
                     <button
                       key={o.v}
-                      onClick={() => update({ practiceMode: o.v })}
+                      // 競争は時間切れで脱落するので、時間制限を必ず付ける
+                      onClick={() => update(o.v === 'compete' ? { practiceMode: o.v, timeLimit: s.timeLimit ?? 15 } : { practiceMode: o.v })}
                       className={`py-2.5 px-2 rounded-xl text-xs font-bold transition-all border ${
                         s.practiceMode === o.v ? 'bg-amber-500/25 border-amber-400/50 text-amber-200' : 'bg-white/5 text-white/40 hover:bg-white/10 border-white/10'
                       }`}
@@ -159,7 +162,7 @@ export default function RoomLobby({ room, myPlayer, errorMsg, onSettings, onStar
                 <p className="text-[11px] text-white/30 mt-2">
                   {s.practiceMode === 'coop'
                     ? '順番に英単語を出して、選んだレベル・ジャンルの単語をみんなで出し切ったらクリア。和訳ヒントも使える。'
-                    : '順番に英単語を出して点数を競う。リストを出し切るか、だれかがリタイアしたら終わり。'}
+                    : '順番に英単語を出す。使えない単語は何度でも打ち直せるが、時間内に出せなかったら脱落。最後に残った1人の勝ち（リストを出し切ったら点数で勝負）。'}
                 </p>
               </div>
             )}
@@ -172,6 +175,8 @@ export default function RoomLobby({ room, myPlayer, errorMsg, onSettings, onStar
                 charLimit={s.charLimit} setCharLimit={v => update({ charLimit: v })}
                 posLimit={s.posLimit} setPosLimit={v => update({ posLimit: v })}
                 timeLimit={s.timeLimit} setTimeLimit={v => update({ timeLimit: v })}
+                missOk={s.missOk} setMissOk={v => update({ missOk: v })}
+                spellFix={s.spellFix} setSpellFix={v => update({ spellFix: v })}
               />
             </>
           ) : (
@@ -183,8 +188,13 @@ export default function RoomLobby({ room, myPlayer, errorMsg, onSettings, onStar
                   onlyTime
                   charLimit={null} setCharLimit={() => {}}
                   posLimit={null} setPosLimit={() => {}}
-                  timeLimit={s.timeLimit} setTimeLimit={v => update({ timeLimit: v })}
+                  timeLimit={s.timeLimit}
+                  // 競争では時間制限をなしにできない
+                  setTimeLimit={v => update({ timeLimit: v === null && s.practiceMode === 'compete' ? s.timeLimit : v })}
                 />
+                {s.practiceMode === 'compete' && (
+                  <p className="text-[11px] text-amber-200/60 mt-2">競争では時間制限をなしにはできません</p>
+                )}
               </div>
             </>
           )}
@@ -226,6 +236,8 @@ export function RulesSummary({ settings: s }: { settings: RoomSettings }) {
       s.posLimit ? `品詞 ${s.posLimit}` : '',
       s.charLimit !== null ? `${s.charLimit}文字` : '',
       s.timeLimit !== null ? `1手 ${s.timeLimit}秒` : '',
+      s.missOk ? 'ミスOK' : '',
+      s.spellFix ? 'つづり1文字OK' : '',
     ]
     : [
       s.practiceMode === 'coop' ? '協力' : '競争',

@@ -34,6 +34,10 @@ export default function Game() {
   const [posLimit, setPosLimit] = useState<string | null>(null);
   // 1手ごとの制限時間（秒）。null は無制限
   const [timeLimit, setTimeLimit] = useState<number | null>(null);
+  // ミスOK: 使えない単語は打ち直せる（時間切れでアウト）。時間制限とセットで使う
+  const [missOk, setMissOk] = useState(false);
+  // つづり1文字OK: 1文字違いは直して認める（得点は半分）
+  const [spellFix, setSpellFix] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   // オンライン（別々の端末で遊ぶ）: 入口画面を開いているか・接続中の部屋
   const [showOnline, setShowOnline] = useState(false);
@@ -120,6 +124,7 @@ export default function Game() {
           charLimit,
           posLimit,
           spellTrap: !isPvP && isSpellTrap,
+          spellFix,
         }),
       });
       const data = await res.json();
@@ -132,13 +137,17 @@ export default function Game() {
       }
 
       if (data.is_valid) {
+        // つづりを1文字まちがえたときは、直した単語で記録する
+        const played: string = data.corrected_word || word;
+        const typedAs: string | undefined = data.corrected_word ? data.typed_word : undefined;
         if (isPvP) {
           const playerKey = currentPlayer === 1 ? 'p1' : 'p2';
           const newScore = scores[playerKey] + data.score;
           const opponentScore = currentPlayer === 1 ? scores.p2 : scores.p1;
           setScores(prev => ({ ...prev, [playerKey]: prev[playerKey] + data.score }));
           setHistory(prev => [...prev, {
-            word,
+            word: played,
+            typedAs,
             translation: data.is_synonym ? '類義語ボーナス x2!' : data.is_antonym ? '対義語ボーナス x2!' : `プレイヤー ${currentPlayer}`,
             isUser: currentPlayer === 1,
             level: data.jacet_level,
@@ -152,11 +161,14 @@ export default function Game() {
         } else {
           setTotalScore(prev => prev + data.score);
           setHistory(prev => [...prev,
-            { word, translation: data.is_synonym ? '類義語ボーナス x2!' : data.is_antonym ? '対義語ボーナス x2!' : (data.user_word_jp || ''), isUser: true, level: data.jacet_level, levelEstimated: data.level_estimated, score: data.score },
+            { word: played, typedAs, translation: data.is_synonym ? '類義語ボーナス x2!' : data.is_antonym ? '対義語ボーナス x2!' : (data.user_word_jp || ''), isUser: true, level: data.jacet_level, levelEstimated: data.level_estimated, score: data.score },
             ...(data.ai_response ? [{ word: data.ai_response, translation: data.ai_response_jp, isUser: false, level: data.ai_jacet_level, levelEstimated: data.ai_level_estimated, correctWord: data.ai_misspelled ? data.ai_correct_word : undefined }] : []),
           ]);
         }
         setInput('');
+      } else if (missOk && timeLimit !== null) {
+        // ミスOK: 負けにせず、残り時間のまま打ち直す
+        setErrorMsg(`「${word}」は使えません：${data.reason || ''} もう一度！`);
       } else {
         setGameOverReason(data.reason);
         if (isPvP) setLosingPlayer(currentPlayer);
@@ -329,6 +341,10 @@ export default function Game() {
             setPosLimit={setPosLimit}
             timeLimit={timeLimit}
             setTimeLimit={setTimeLimit}
+            missOk={missOk}
+            setMissOk={setMissOk}
+            spellFix={spellFix}
+            setSpellFix={setSpellFix}
             starting={startingGame}
             onStart={startGame}
             onBack={goToTop}

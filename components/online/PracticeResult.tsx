@@ -17,7 +17,13 @@ interface Props {
 export default function PracticeResult({ room, myPlayer, onRematch, onToLobby, onLeave }: Props) {
   const coop = room.settings.practiceMode === 'coop';
   const players = room.players.filter(p => p.inGame);
-  const ranked = [...players].sort((a, b) => b.score - a.score);
+  // 競争の順位: 残った人（点数順）→ 後から脱落した人ほど上
+  const ranked = [
+    ...players.filter(p => !p.eliminated).sort((a, b) => b.score - a.score),
+    ...[...room.eliminations].reverse()
+      .map(e => players.find(p => p.no === e.player))
+      .filter((p): p is NonNullable<typeof p> => !!p),
+  ];
   const remaining = room.wordList.filter(w => !room.history.some(h => sameWord(h.word, w.word)));
   const used = room.wordList.length - remaining.length;
   const hintUsed = room.history.filter(h => h.hinted).length;
@@ -52,7 +58,14 @@ export default function PracticeResult({ room, myPlayer, onRematch, onToLobby, o
               !coop && i === 0 && room.winner !== null ? 'bg-amber-500/15 border-amber-400/40' : 'bg-white/5 border-white/10'
             }`}>
               {!coop && <span className="w-6 text-center font-black text-white/60 tabular-nums">{i + 1}</span>}
-              <p className="flex-1 font-black text-white text-sm">{playerLabel(p.no, myPlayer)}</p>
+              <div className="flex-1 min-w-0">
+                <p className="font-black text-white text-sm">{playerLabel(p.no, myPlayer)}</p>
+                {!coop && p.eliminated && (
+                  <p className="text-[11px] text-white/40 truncate">
+                    脱落：{room.eliminations.find(e => e.player === p.no)?.reason ?? ''}
+                  </p>
+                )}
+              </div>
               <p className="text-xs text-white/50">{p.words} 語{p.spellFixes > 0 ? `・つづり修正 ${p.spellFixes}` : ''}{p.misses > 0 ? `・ミス ${p.misses}` : ''}</p>
               <p className="font-black text-white tabular-nums w-16 text-right">{p.score}<span className="text-[10px] text-white/40 ml-0.5">pt</span></p>
             </li>
