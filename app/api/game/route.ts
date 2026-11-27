@@ -117,6 +117,8 @@ async function handleGenrePractice(
   levels: string[],
   /** 実験用の固定語セット: AI は常に選んだリストの残りから返す */
   fixed = false,
+  /** つづりの1文字違いを直して認めるか（オンラインの競争で「直さない」を選べる） */
+  allowSpellFix = true,
 ) {
   const invalid = (reason: string) => NextResponse.json({
     is_valid: false, reason,
@@ -134,7 +136,7 @@ async function handleGenrePractice(
   // つづりの1文字違いは、近い単語に直して認める（得点は半分）
   let word = typed;
   let corrected = false;
-  if (!lookupEntry(typed)) {
+  if (allowSpellFix && !lookupEntry(typed)) {
     const fix = findSpellingFix(typed, practiceWords, genres, history, sameEntry);
     if (fix) { word = fix; corrected = true; }
   }
@@ -236,6 +238,8 @@ export async function POST(req: Request) {
         (practiceWords as unknown[]).map(String), (practiceGenres as unknown[]).map(String),
         Array.isArray(practiceLevels) ? (practiceLevels as unknown[]).map(String) : [],
         practiceFixed === true,
+        // 送られてこなければ直す（ひとり練習・実験ページはこれまでどおり）
+        spellFix !== false,
       );
     } catch (error) {
       console.error('OpenAI API Error (genre practice):', error);

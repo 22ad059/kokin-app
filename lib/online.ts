@@ -34,6 +34,8 @@ export interface RoomSettings {
   missOk: boolean;
   /** 対戦: つづり1文字OK（1文字違いは直して認める。得点は半分） */
   spellFix: boolean;
+  /** 練習の競争: つづり1文字違いを直して認めるか（協力は常に直す） */
+  practiceSpellFix: boolean;
 }
 
 export interface OnlineMove {
@@ -141,6 +143,7 @@ export const DEFAULT_SETTINGS: RoomSettings = {
   timeLimit: null,
   missOk: false,
   spellFix: false,
+  practiceSpellFix: true,
 };
 
 export function randomRoomCode(): string {

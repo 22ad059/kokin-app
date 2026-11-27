@@ -191,6 +191,11 @@ export default function RoomLobby({ room, myPlayer, errorMsg, onSettings, onStar
                   timeLimit={s.timeLimit}
                   // 競争では時間制限をなしにできない
                   setTimeLimit={v => update({ timeLimit: v === null && s.practiceMode === 'compete' ? s.timeLimit : v })}
+                  // 競争では、つづりの1文字違いを直すかを選べる（協力は常に直す）
+                  {...(s.practiceMode === 'compete' ? {
+                    spellFix: s.practiceSpellFix !== false,
+                    setSpellFix: (v: boolean) => update({ practiceSpellFix: v }),
+                  } : {})}
                 />
                 {s.practiceMode === 'compete' && (
                   <p className="text-[11px] text-amber-200/60 mt-2">競争では時間制限をなしにはできません</p>
@@ -241,6 +246,7 @@ export function RulesSummary({ settings: s }: { settings: RoomSettings }) {
     ]
     : [
       s.practiceMode === 'coop' ? '協力' : '競争',
+      s.practiceMode === 'compete' && s.practiceSpellFix === false ? 'つづり修正なし' : '',
       ...s.levels.map(l => l.replace('Level ', 'Lv.')),
       s.timeLimit !== null ? `1手 ${s.timeLimit}秒` : '',
     ];

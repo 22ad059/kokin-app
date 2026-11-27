@@ -347,6 +347,7 @@ export class GameRoom extends DurableObject {
           practiceWords: room.wordList.map(w => w.word),
           practiceGenres: s.genres,
           practiceLevels: s.levels,
+          spellFix: isCompete(s) ? s.practiceSpellFix !== false : true,
         });
     } catch { /* 下で通信失敗として扱う */ }
 
@@ -705,5 +706,7 @@ function sanitizeSettings(s: RoomSettings): RoomSettings {
     timeLimit: int(s.timeLimit, 5, 60),
     missOk: !!s.missOk,
     spellFix: !!s.spellFix,
+    // 前の版の部屋（設定がない）では直す
+    practiceSpellFix: s.practiceSpellFix !== false,
   };
 }
