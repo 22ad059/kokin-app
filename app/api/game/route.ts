@@ -96,6 +96,8 @@ async function handleGenrePractice(
   practiceWords: string[],
   genres: string[],
   levels: string[],
+  /** 実験用の固定語セット: AI は常に選んだリストの残りから返す */
+  fixed = false,
 ) {
   const invalid = (reason: string) => NextResponse.json({
     is_valid: false, reason,
@@ -170,7 +172,7 @@ JSON形式のみで回答: {"is_english": boolean, "fits_genre": boolean, "reaso
   const usedAfter = [...history, word];
   const isUsed = (w: string) => usedAfter.some(h => sameEntry(h, w));
   let aiResponse = '';
-  if (levels.includes(jacetLevel)) {
+  if (fixed || levels.includes(jacetLevel)) {
     aiResponse = pick(practiceWords.filter(w => !isUsed(w))) ?? '';
   } else if (LEVEL_RE.test(jacetLevel)) {
     const pool = loadWords()
@@ -199,7 +201,7 @@ JSON形式のみで回答: {"is_english": boolean, "fits_genre": boolean, "reaso
 
 export async function POST(req: Request) {
   const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-  const { theme, themeDefinition, userWord, history, mode, charLimit, posLimit, spellTrap, practiceWords, practiceGenres, practiceLevels } = await req.json();
+  const { theme, themeDefinition, userWord, history, mode, charLimit, posLimit, spellTrap, practiceWords, practiceGenres, practiceLevels, practiceFixed } = await req.json();
 
   if (typeof userWord !== 'string' || !userWord.trim() || !Array.isArray(history)) {
     return NextResponse.json({ error: '不正なリクエストです' }, { status: 400 });
@@ -212,6 +214,7 @@ export async function POST(req: Request) {
         openai, userWord, history as string[],
         (practiceWords as unknown[]).map(String), (practiceGenres as unknown[]).map(String),
         Array.isArray(practiceLevels) ? (practiceLevels as unknown[]).map(String) : [],
+        practiceFixed === true,
       );
     } catch (error) {
       console.error('OpenAI API Error (genre practice):', error);

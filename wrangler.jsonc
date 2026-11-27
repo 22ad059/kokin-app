@@ -26,6 +26,11 @@
       {
         "name": "GAME_ROOM",
         "class_name": "GameRoom"
+      },
+      // 効果検証実験の記録（worker/ExperimentLog.ts）
+      {
+        "name": "EXPERIMENT_LOG",
+        "class_name": "ExperimentLog"
       }
     ]
   },
@@ -33,6 +38,10 @@
     {
       "tag": "v1",
       "new_sqlite_classes": ["GameRoom"]
+    },
+    {
+      "tag": "v2",
+      "new_sqlite_classes": ["ExperimentLog"]
     }
   ],
   "observability": {

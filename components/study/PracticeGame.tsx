@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState } from 'react';
+import { useRef, useEffect, useState, type ReactNode } from 'react';
 import SpellDiff from '@/components/SpellDiff';
 import { LEVEL_BADGE } from '@/lib/constants';
 import WordCardGrid from './WordCardGrid';
@@ -55,7 +55,10 @@ interface Props {
   onRevealHint?: (word: string) => void;
   /** 指定するとゲーム中にリタイアボタンを表示する */
   onRetire?: () => void;
-  onBack: () => void;
+  /** 省略するとヘッダーの戻るボタンを出さない（実験ページ用） */
+  onBack?: () => void;
+  /** ヘッダー左に戻るボタンの代わりに出す表示（例: 周の数・残り時間） */
+  headerNote?: ReactNode;
   backLabel?: string;
   variant?: Variant;
   /** true なら日本語訳をヒントに英単語をタイピングして答える（リスト外は不合格） */
@@ -64,7 +67,7 @@ interface Props {
 
 export default function PracticeGame({
   wordList, history, score, gameOver, gameOverReason,
-  gameLoading, errorMsg, onPlayWord, onRestart, onRetire, onBack, backLabel = '← 戻る', variant = 'violet',
+  gameLoading, errorMsg, onPlayWord, onRestart, onRetire, onBack, headerNote, backLabel = '← 戻る', variant = 'violet',
   inputMode = false, genres, levels, hintedWords, onRevealHint,
 }: Props) {
   const c = COLORS[variant];
@@ -103,9 +106,13 @@ export default function PracticeGame({
     <div className="flex flex-col gap-3">
       {/* ヘッダー */}
       <div className="flex items-center justify-between">
-        <button onClick={onBack} className="inline-flex items-center gap-1 text-white/40 hover:text-white/70 text-sm font-medium transition-colors">
-          {backLabel}
-        </button>
+        {onBack ? (
+          <button onClick={onBack} className="inline-flex items-center gap-1 text-white/40 hover:text-white/70 text-sm font-medium transition-colors">
+            {backLabel}
+          </button>
+        ) : (
+          <div className="text-sm font-bold text-white/60">{headerNote}</div>
+        )}
         <div className={`flex items-center gap-2 bg-gradient-to-r ${c.scoreBadge} border px-4 py-2 rounded-full`}>
           <span className="text-white font-black text-xl">{score}</span>
           <span className="text-white/40 text-xs">pt</span>
@@ -230,12 +237,14 @@ export default function PracticeGame({
             >
               リトライ
             </button>
-            <button
-              onClick={onBack}
-              className="py-3 rounded-2xl font-black text-white/50 bg-white/5 border border-white/10 text-sm active:scale-95 transition-all hover:bg-white/10"
-            >
-              戻る
-            </button>
+            {onBack && (
+              <button
+                onClick={onBack}
+                className="py-3 rounded-2xl font-black text-white/50 bg-white/5 border border-white/10 text-sm active:scale-95 transition-all hover:bg-white/10"
+              >
+                戻る
+              </button>
+            )}
           </div>
         </div>
       ) : (

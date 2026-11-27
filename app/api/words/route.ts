@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { loadWords, type WordEntry } from '@/lib/wordLoader';
+import { loadWords, lookupEntry, type WordEntry } from '@/lib/wordLoader';
+import { EXPERIMENT_SETS } from '@/data/experimentSets';
 
 export type { WordEntry };
 
@@ -11,8 +12,21 @@ export async function GET(req: Request) {
   const limit = Number.isFinite(parsedLimit) && parsedLimit > 0 ? parsedLimit : 20;
 
   const sort = searchParams.get('sort');
+  const setId = searchParams.get('set');
 
   try {
+    // 実験用の語セット: 定義された順のまま返す
+    if (setId) {
+      const set = Object.hasOwn(EXPERIMENT_SETS, setId) ? EXPERIMENT_SETS[setId] : undefined;
+      if (!set) return NextResponse.json({ error: `語セット「${setId}」はありません` }, { status: 404 });
+      const missing = set.words.filter(w => !lookupEntry(w));
+      if (missing.length) {
+        return NextResponse.json({ error: `単語データにない語があります: ${missing.join(', ')}` }, { status: 500 });
+      }
+      const words = set.words.map(w => lookupEntry(w)!);
+      return NextResponse.json({ words, set: { id: setId, label: set.label, genre: set.genre } });
+    }
+
     let words = loadWords();
     if (level) {
       const levels = level.split(',').map(l => l.trim()).filter(Boolean);

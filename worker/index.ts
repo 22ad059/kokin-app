@@ -8,10 +8,11 @@
 // @ts-ignore `.open-next/worker.js` はビルド時に生成される
 import { default as nextHandler } from '../.open-next/worker.js';
 import { GameRoom } from './GameRoom';
+import { ExperimentLog } from './ExperimentLog';
 import { PASSCODE_COOKIE, tokenFor } from '../lib/passcode';
 import { ROOM_CODE_RE } from '../lib/online';
 
-export { GameRoom };
+export { GameRoom, ExperimentLog };
 
 function readCookie(request: Request, name: string): string | undefined {
   const header = request.headers.get('Cookie') ?? '';

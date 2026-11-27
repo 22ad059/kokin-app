@@ -1,5 +1,5 @@
 'use client';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import type { WordEntry, PracticeMessage } from '@/types/study';
@@ -9,11 +9,20 @@ import GenreSelector from '@/components/study/GenreSelector';
 import PracticeGame from '@/components/study/PracticeGame';
 import WordCardGrid from '@/components/study/WordCardGrid';
 import { sameWord } from '@/lib/wordMatch';
+import { postJson } from '@/lib/postJson';
 
 type Phase = 'setup' | 'game';
+type FixedSet = { id: string; label: string; genre: string };
+
+const noopSubscribe = () => () => {};
 
 export default function PracticePage() {
   const [phase, setPhase] = useState<Phase>('setup');
+  // URL に ?set=<id> があれば実験用の固定語セットで始める（サーバー描画中は null）
+  const search = useSyncExternalStore(noopSubscribe, () => window.location.search, () => null);
+  const setId = search === null ? null : new URLSearchParams(search).get('set');
+  const [fixedSet, setFixedSet] = useState<FixedSet | null>(null);
+  const [bootError, setBootError] = useState('');
   const [selectedLevels, setSelectedLevels] = useState<string[]>(['Level 1', 'Level 2']);
   const [selectedGenres, setSelectedGenres] = useState<string[]>([]);
   const [allGenres, setAllGenres] = useState<string[]>([]);
@@ -31,12 +40,32 @@ export default function PracticePage() {
   const [hintedWords, setHintedWords] = useState<Set<string>>(new Set());
 
   useEffect(() => {
+    if (!setId) return;
+    let cancelled = false;
+    fetch(`/api/words?set=${encodeURIComponent(setId)}`)
+      .then(async r => ({ ok: r.ok, d: await r.json() }))
+      .then(({ ok, d }) => {
+        if (cancelled) return;
+        if (!ok || !d.set) { setBootError(d?.error || '語セットを読み込めませんでした。'); return; }
+        const words: WordEntry[] = d.words ?? [];
+        setFixedSet(d.set);
+        setWordList(words);
+        setSelectedGenres([d.set.genre]);
+        setSelectedLevels([...new Set(words.map(w => w.level))].sort());
+        setPhase('game');
+      })
+      .catch(() => { if (!cancelled) setBootError('通信エラーが発生しました。ページを再読み込みしてください。'); });
+    return () => { cancelled = true; };
+  }, [setId]);
+
+  useEffect(() => {
     fetch('/api/words?limit=1')
       .then(r => r.json())
       .then(d => {
         const all: string[] = d.genres ?? [];
         const sorted = [...all.filter(g => g !== 'その他'), ...all.filter(g => g === 'その他')];
         setAllGenres(sorted);
+        // 固定語セットのときは上の effect が決めたジャンルを残す
         setSelectedGenres(prev => prev.length ? prev : sorted.slice(0, 1));
       })
       .catch(() => {});
@@ -96,21 +125,19 @@ export default function PracticePage() {
     setGameError('');
     setGameLoading(true);
     try {
-      const res = await fetch('/api/game', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          userWord: word,
-          history: history.map(h => h.word),
-          mode: 'solo',
-          practiceWords: wordList.map(w => w.word),
-          practiceGenres: selectedGenres,
-          practiceLevels: selectedLevels,
-        }),
+      // 通信が一時的に切れたときは自動で送り直す
+      const res = await postJson('/api/game', {
+        userWord: word,
+        history: history.map(h => h.word),
+        mode: 'solo',
+        practiceWords: wordList.map(w => w.word),
+        practiceGenres: selectedGenres,
+        practiceLevels: selectedLevels,
+        practiceFixed: !!fixedSet,
       });
-      const data = await res.json();
-      if (!res.ok || typeof data.is_valid !== 'boolean') {
-        setGameError(data?.error || '通信エラーが発生しました。もう一度お試しください。');
+      const data = res.data;
+      if (!res.ok || typeof data?.is_valid !== 'boolean') {
+        setGameError(data?.error || '通信エラーが発生しました。もう一度「送信」を押してください。');
         setGameLoading(false);
         return false;
       }
@@ -146,7 +173,26 @@ export default function PracticePage() {
       setGameLoading(false);
       return false;
     }
-  }, [gameLoading, gameOver, history, wordList, selectedGenres, selectedLevels, hintedWords]);
+  }, [gameLoading, gameOver, history, wordList, selectedGenres, selectedLevels, hintedWords, fixedSet]);
+
+  const restart = () => { setHistory([]); setHintedWords(new Set()); setScore(0); setGameOver(false); setGameOverReason(''); setGameError(''); };
+
+  // ── 固定語セットの読み込み中・失敗 ──
+  if (search === null || (setId && !fixedSet)) {
+    return (
+      <PageShell variant="amber" contentKey="boot">
+        {bootError ? (
+          <div role="alert" className="bg-rose-500/15 border border-rose-400/30 text-rose-300 text-sm font-bold rounded-2xl px-4 py-3 text-center backdrop-blur-sm">
+            {bootError}
+          </div>
+        ) : (
+          <div className="flex justify-center py-20">
+            <div className="w-8 h-8 border-2 border-amber-400/40 border-t-amber-300 rounded-full animate-spin" />
+          </div>
+        )}
+      </PageShell>
+    );
+  }
 
   // ── セットアップ ──
   if (phase === 'setup') {
@@ -235,10 +281,11 @@ export default function PracticePage() {
         gameLoading={gameLoading}
         errorMsg={gameError}
         onPlayWord={playWord}
-        onRestart={() => { setHistory([]); setHintedWords(new Set()); setScore(0); setGameOver(false); setGameOverReason(''); setGameError(''); }}
+        onRestart={restart}
         onRetire={() => { setGameError(''); setGameOver(true); setGameOverReason('リタイア'); }}
-        onBack={() => { setGameError(''); setPhase('setup'); }}
-        backLabel="← 設定に戻る"
+        // 固定語セットでは設定画面に戻さない（参加者が語を変えられないようにする）
+        onBack={fixedSet ? restart : () => { setGameError(''); setPhase('setup'); }}
+        backLabel={fixedSet ? '← 最初から' : '← 設定に戻る'}
         variant="amber"
         inputMode
         hintedWords={hintedWords}
